@@ -19,7 +19,13 @@ NEWSPIDER_MODULE = 'dmoz.spiders'
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36'
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
-#CONCURRENT_REQUESTS=32
+# Configured for broad crawls
+CONCURRENT_REQUESTS = 64
+REACTOR_THREADPOOL_MAXSIZE = 30
+COOKIES_ENABLED = False
+RETRY_ENABLED = False
+DOWNLOAD_TIMEOUT = 15
+# AJAXCRAWL_ENABLED = True
 
 # Configure a delay for requests for the same website (default: 0)
 # See http://scrapy.readthedocs.org/en/latest/topics/settings.html#download-delay
