@@ -29,9 +29,9 @@ lazy val processDmoz = (project in file("process-dmoz")).
     libraryDependencies ++= Seq(
       "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
       "org.jsoup" % "jsoup" % "1.10.2",
-      "org.apache.spark" %% "spark-core" % sparkVersion % "provided,runtime",
-      "org.apache.spark" %% "spark-sql" % sparkVersion % "provided,runtime",
-      "org.apache.spark" %% "spark-mllib" % sparkVersion % "provided,runtime")
+      "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
+      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
+      "org.apache.spark" %% "spark-mllib" % sparkVersion % Provided)
   )
 
 lazy val root = (project in file(".")).aggregate(processDmoz)
