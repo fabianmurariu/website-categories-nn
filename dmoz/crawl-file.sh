@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -x
+set -e
 export SITES=$(pwd)/$1
 OUT=${SITES}.gz
 ERR=$(pwd)/$1.err
