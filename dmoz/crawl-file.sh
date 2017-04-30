@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-export SITES=$1
+export SITES=$(pwd)/$1
 OUT=${SITES}.jl
-echo "$SITES and $OUT"
-scrapy crawl dmoz-csv --loglevel ERROR -o ${OUT}
+ERR=$(pwd)/$1.err
+scrapy crawl dmoz-csv --loglevel ERROR --output-format=jsonlines --output - 2>${ERR} | pv | gzip > ${SITEST}.gz

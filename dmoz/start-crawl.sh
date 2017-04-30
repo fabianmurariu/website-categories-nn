@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # assume the file dmoz_domain_category.tab is in the local directory
+unxz dmoz_domain_category.tab.xz
 split --bytes=10M dmoz_domain_category.tab
 
 if [ -f /proc/cpuinfo ]; then
