@@ -4,7 +4,7 @@ if [ -f .crawl-ip ]; then
     export INSTANCE_IP=$(cat .crawl-ip)
 else
     export INSTANCE_IP=$(gcloud compute --project "brave-monitor-160414" instances create "crawl-instance-1" --zone "europe-west1-c" \
-    --machine-type "n1-standard-2" \
+    --machine-type "n1-standard-8" \
     --format "json" \
     --subnet "default" \
     --metadata "ssh-keys=ubuntu:${KEY}" \
@@ -17,6 +17,9 @@ else
     --boot-disk-device-name "crawl-instance-1" | jq --raw-output ".[0].networkInterfaces[0].accessConfigs[0].natIP")
     echo ${INSTANCE_IP} > .crawl-ip
 fi
+
+echo "Sleeping 30 seconds before logging into [${INSTANCE_IP}]"
+sleep 30
 
 ssh -t ubuntu@${INSTANCE_IP} <<'ENDSSH'
 sudo apt-get update && sudo apt-get -y upgrade
