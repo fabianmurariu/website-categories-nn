@@ -17,7 +17,7 @@ echo ${INSTANCE_IP}
 
 ssh ubuntu@${INSTANCE_IP} <<'ENDSSH'
 sudo apt-get update && sudo apt-get -y upgrade
-sudo apt-get -y install python-dev python-pip libxml2-dev libxslt1-dev zlib1g-dev libffi-dev libssl-dev
+sudo apt-get -y install python-dev python-pip libxml2-dev libxslt1-dev zlib1g-dev libffi-dev libssl-dev pv
 sudo pip install --upgrade pip
 pip install scrapy
 git clone https://github.com/fabianmurariu/website-categories-nn.git
