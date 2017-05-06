@@ -26,9 +26,11 @@ lazy val processDmoz = (project in file("process-dmoz")).
   settings(Defaults.itSettings: _*).
   settings(
     name := "process-dmoz",
+    resolvers ++= Seq(Resolver.sonatypeRepo("releases"), Resolver.sonatypeRepo("snapshots"),Resolver.mavenLocal),
     libraryDependencies ++= Seq(
       "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
       "org.jsoup" % "jsoup" % "1.10.2",
+      "com.github.scopt" %% "scopt" % "3.5.0",
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-mllib" % sparkVersion % Provided)
