@@ -3,10 +3,16 @@ package com.bytes32.prenn
 import java.net.URI
 import java.util.zip.GZIPInputStream
 
+import com.optimaize.langdetect.LanguageDetectorBuilder
+import com.optimaize.langdetect.i18n.LdLocale
+import com.optimaize.langdetect.ngram.NgramExtractors
+import com.optimaize.langdetect.profiles.LanguageProfileReader
+import com.optimaize.langdetect.text.CommonTextObjectFactories
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
 import org.jsoup.Jsoup
 
+import scala.collection.JavaConversions._
 import scala.io.Source
 import scala.util.matching.Regex
 
@@ -16,21 +22,26 @@ import scala.util.matching.Regex
 object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
 
   val Word: Regex = "[a-zA-Z]+".r
-  case class Config(websitesRawInput:String, websitesTextOutput:String, categoriesPath:String, local:Boolean)
+
+  case class Config(websitesRawInput: String, websitesTextOutput: String, categoriesPath: String, websitesCleanOutput: String, local: Boolean = false)
+
   case class WebSiteCategoriesText(uri: String, origUri: String, categories: Seq[String], text: String)
+
   case class WebSiteCategoriesTokens(uri: String, category: String, words: Seq[String])
+
   case class FilterCategory(name: String, includes: Set[String], excludes: Set[String])
 
-  def excludeNonEnglishWebsitesFlatten(ws: Dataset[WebSiteCategoriesText], words: Set[String])
+  def excludeNonEnglishWebsitesFlatten(words: Set[String])(ws: Dataset[WebSiteCategoriesText])
                                       (implicit spark: SparkSession): Dataset[WebSiteCategoriesTokens] = {
     import spark.implicits._
-    ws.flatMap {
+    ws.rdd.flatMap {
       case WebSiteCategoriesText(uri, _, categories, text) =>
-        val englishOnlyWords = text.split("\\s+").filter(word => words.contains(word))
-        if (englishOnlyWords.length > 5) {
+        val maybeEnglish = Language.detectEnglish(text)
+        if (maybeEnglish.isDefined) {
+          val englishOnlyWords = text.split("\\s+")
           categories.map(cat => WebSiteCategoriesTokens(uri, cat, englishOnlyWords))
         } else List.empty
-    }
+    }.toDS()
   }
 
   def loadEnglishWords: Set[String] = {
@@ -45,7 +56,7 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
     dmozCat.stripPrefix("Top/").startsWith(filterCat)
   }
 
-  def filterAndExpandWebSites(data: Dataset[WebSiteCategoriesText], filterCategories: Seq[FilterCategory])
+  def filterAndExpandWebSites(filterCategories: Seq[FilterCategory])(data: Dataset[WebSiteCategoriesText])
                              (implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
     import spark.implicits._
 
@@ -59,17 +70,6 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
     }
   }
 
-
-  def selectFilterCategory(webSitesCategoriesText: WebSiteCategoriesText, filterCategories: Seq[FilterCategory])(category: String): Seq[WebSiteCategoriesText] = {
-    filterCategories
-      .filter(categoryIsIncluded(category))
-      .map(cat => WebSiteCategoriesText(webSitesCategoriesText.uri, webSitesCategoriesText.origUri, List(cat.name), webSitesCategoriesText.text))
-  }
-
-  def categoryIsIncluded(category: String)(fCat: FilterCategory): Boolean =
-    fCat.includes.exists(cat => category.contains(cat))
-
-
   def loadCategories(catsPath: String)(implicit spark: SparkSession): Seq[FilterCategory] = {
     spark.read.json(catsPath).rdd.map {
       case Row(filters: Row, name: String) =>
@@ -79,33 +79,53 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
     }.collect()
   }
 
-  def main(args: Array[String]): Unit = {
-    val (rawHtmlWithCategoriesPath, out, out2, local) = args.toList match {
-      case path :: output :: output2 :: localFlag :: _ => (new URI(path), new URI(output), new URI(output2), localFlag.toBoolean)
-      case _ => throw new IllegalArgumentException("Missing or invalid path expected raw categories and html file and output path")
+  def parseArgs(args: Array[String]): Config = {
+    val parser = new scopt.OptionParser[Config](getClass.getSimpleName) {
+      opt[Unit]("local").action((_, config) =>
+        config.copy(local = true)
+      )
+      opt[String]("websitesRawInput").required().action((path, config) =>
+        config.copy(websitesRawInput = path)).text("Path to the dmoz corpus with static webpages crawled")
+      opt[String]("websitesTextOutput").optional().action((path, config) =>
+        config.copy(websitesTextOutput = path)).text("Path to output clean text for every webpage")
+      opt[String]("categoriesPath").optional().action((path, config) =>
+        config.copy(categoriesPath = path)).text("Path to categories mapping as json lines")
+      opt[String]("websitesCleanOutput").optional().action((path, config) =>
+        config.copy(websitesCleanOutput = path)).text("Path to output of categories and tokens as array")
+
+      override def reportError(msg: String): Unit = throw new IllegalArgumentException(s"$msg\n$usage")
     }
 
+    parser.parse(args, Config(null, null, null, null)).get
+  }
+
+  def main(args: Array[String]): Unit = {
+
+    val Config(websitesRawInput, websitesTextOutput, categoriesPath, websitesCleanOutput, local) = parseArgs(args)
+
     implicit val spark = makeSparkSession("PreNNProcessor", local)
+    import spark.implicits._
     /* extract the words from the websites */
-    runForOutput(out.toString) {
-      val rawHtml = spark.read.json(rawHtmlWithCategoriesPath.toString)
+    runForOutput(websitesTextOutput) {
+      val rawHtml = spark.read.json(websitesRawInput)
       extractTextFromRawHtmlWithCategories(rawHtml)
         .write
         .option("compression", "snappy")
-        .parquet(out.toString)
+        .parquet(websitesTextOutput)
     }
 
-    runForOutput(out2.getPath) {
-      val categories = loadCategories("/Users/murariuf/Source/website-categories-nn/sparky/process-dmoz/src/main/resources/subcategories.jl")
+    /* convert to local categories and cleanup non-english words */
+    runForOutput(websitesCleanOutput) {
+      val categories = loadCategories(categoriesPath)
       val words = loadEnglishWords
       val dmozTextCats = spark.read
-        .parquet(out.toString)
+        .parquet(websitesTextOutput)
         .as[WebSiteCategoriesText]
 
-      val wordTokens = ((filterAndExpandWebSites(_, categories)) andThen
-        (excludeNonEnglishWebsitesFlatten(_, words))).apply(dmozTextCats)
+      val wordTokens = (filterAndExpandWebSites(categories) _ andThen
+        excludeNonEnglishWebsitesFlatten(words)).apply(dmozTextCats)
 
-      wordTokens.write.option("compression", "snappy").parquet(out2.toString)
+      wordTokens.write.option("compression", "snappy").parquet(websitesCleanOutput)
     }
   }
 

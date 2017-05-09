@@ -17,7 +17,11 @@ lazy val commonSettings = Seq(
     case PathList("META-INF", "native", xs@_) => MergeStrategy.first
     case PathList("META-INF", xs@_*) => MergeStrategy.discard
     case x => MergeStrategy.first
-  }
+  },
+  assemblyShadeRules in assembly := Seq(
+    ShadeRule.rename("com.google.common.**" ->
+      "shadeio.@0").inAll
+  )
 )
 
 lazy val processDmoz = (project in file("process-dmoz")).
@@ -26,11 +30,13 @@ lazy val processDmoz = (project in file("process-dmoz")).
   settings(Defaults.itSettings: _*).
   settings(
     name := "process-dmoz",
-    resolvers ++= Seq(Resolver.sonatypeRepo("releases"), Resolver.sonatypeRepo("snapshots"),Resolver.mavenLocal),
+    resolvers ++= Seq(Resolver.sonatypeRepo("releases"), Resolver.sonatypeRepo("snapshots"), Resolver.mavenLocal),
     libraryDependencies ++= Seq(
       "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
       "org.jsoup" % "jsoup" % "1.10.2",
       "com.github.scopt" %% "scopt" % "3.5.0",
+      "com.optimaize.languagedetector" % "language-detector" % "0.6" exclude("com.google.guava", "guava"),
+      "com.google.guava" % "guava" % "16.0.1",
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-mllib" % sparkVersion % Provided)
