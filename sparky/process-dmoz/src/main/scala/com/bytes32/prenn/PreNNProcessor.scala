@@ -31,7 +31,7 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
 
   case class FilterCategory(name: String, includes: Set[String], excludes: Set[String])
 
-  def excludeNonEnglishWebsitesFlatten(words: Set[String])(ws: Dataset[WebSiteCategoriesText])
+  def excludeNonEnglishWebsitesFlatten(ws: Dataset[WebSiteCategoriesText])
                                       (implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
     import spark.implicits._
     ws.rdd.filter {
@@ -39,14 +39,6 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
         val maybeEnglish = Language.detectEnglish(text)
         maybeEnglish.isDefined
     }.toDS()
-  }
-
-  def loadEnglishWords: Set[String] = {
-    Source
-      .fromInputStream(new GZIPInputStream(getClass.getResourceAsStream("/en_words.csv.gz")))
-      .getLines()
-      .filter(word => Word.findFirstIn(word).isDefined)
-      .toSet
   }
 
   def checkCategory(dmozCat: String)(filterCat: String): Boolean = {
@@ -114,13 +106,12 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
     /* convert to local categories and cleanup non-english words */
     runForOutput(websitesCleanOutput) {
       val categories = loadCategories(categoriesPath)
-      val words = loadEnglishWords
       val dmozTextCats = spark.read
         .parquet(websitesTextOutput)
         .as[WebSiteCategoriesText]
 
       val wordTokens = (filterAndExpandWebSites(categories) _ andThen
-        excludeNonEnglishWebsitesFlatten(words)).apply(dmozTextCats)
+        excludeNonEnglishWebsitesFlatten).apply(dmozTextCats)
 
       wordTokens.write.option("compression", "snappy").parquet(websitesCleanOutput)
     }

@@ -85,19 +85,13 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
 
   }
 
-  it should "load english words" in {
-    val words = loadEnglishWords
-    words.size should be(365826)
-    words should contain allElementsOf List("house", "car", "chat", "september", "the", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "ass", "dog")
-  }
-
   it should "detect english websites" in {
     import spark.implicits._
     val samples =
       Seq(WebSiteCategoriesText("uri1", "origUri1", Seq("general", "french"), "Le jour est brillant et nous avons des journaux à recevoir"),
         WebSiteCategoriesText("uri2", "origUri2", Seq("fonts"), "the quick brown fox jumps over the lazy ass dog")).toDS
 
-    val actual = excludeNonEnglishWebsitesFlatten(loadEnglishWords)(samples).collect()
+    val actual = excludeNonEnglishWebsitesFlatten(samples).collect()
     actual should contain theSameElementsAs List(
       WebSiteCategoriesText("uri2", "origUri2", Seq("fonts"), "the quick brown fox jumps over the lazy ass dog"))
   }
