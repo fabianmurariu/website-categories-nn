@@ -75,7 +75,7 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
       )
       opt[String]("websitesRawInput").required().action((path, config) =>
         config.copy(websitesRawInput = path)).text("Path to the dmoz corpus with static webpages crawled")
-      opt[String]("websitesTextOutput").optional().action((path, config) =>
+      opt[String]("websitesTextOutput").required().action((path, config) =>
         config.copy(websitesTextOutput = path)).text("Path to output clean text for every webpage")
       opt[String]("categoriesPath").optional().action((path, config) =>
         config.copy(categoriesPath = path)).text("Path to categories mapping as json lines")
