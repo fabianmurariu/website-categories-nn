@@ -18,6 +18,8 @@ import scala.util.matching.Regex
 
 /**
   * Created by murariuf on 30/04/2017.
+  * Load and clean the raw dataset and return only the text that looks english
+  * map the categories against the text
   */
 object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
 
@@ -27,20 +29,15 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
 
   case class WebSiteCategoriesText(uri: String, origUri: String, categories: Seq[String], text: String)
 
-  case class WebSiteCategoriesTokens(uri: String, category: String, words: Seq[String])
-
   case class FilterCategory(name: String, includes: Set[String], excludes: Set[String])
 
   def excludeNonEnglishWebsitesFlatten(words: Set[String])(ws: Dataset[WebSiteCategoriesText])
-                                      (implicit spark: SparkSession): Dataset[WebSiteCategoriesTokens] = {
+                                      (implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
     import spark.implicits._
-    ws.rdd.flatMap {
-      case WebSiteCategoriesText(uri, _, categories, text) =>
+    ws.rdd.filter {
+      case WebSiteCategoriesText(_, _, _, text) =>
         val maybeEnglish = Language.detectEnglish(text)
-        if (maybeEnglish.isDefined) {
-          val englishOnlyWords = text.split("\\s+")
-          categories.map(cat => WebSiteCategoriesTokens(uri, cat, englishOnlyWords))
-        } else List.empty
+        maybeEnglish.isDefined
     }.toDS()
   }
 

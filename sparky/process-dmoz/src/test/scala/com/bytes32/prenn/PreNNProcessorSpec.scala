@@ -99,7 +99,7 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
 
     val actual = excludeNonEnglishWebsitesFlatten(loadEnglishWords)(samples).collect()
     actual should contain theSameElementsAs List(
-      WebSiteCategoriesTokens("uri2", "fonts", Seq("the", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "ass", "dog")))
+      WebSiteCategoriesText("uri2", "origUri2", Seq("fonts"), "the quick brown fox jumps over the lazy ass dog"))
   }
 
   it should "not take too long to detect language" in {

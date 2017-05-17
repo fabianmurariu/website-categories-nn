@@ -15,16 +15,18 @@ from __future__ import print_function
 
 import os
 import sys
+import gzip
 import numpy as np
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
-from keras.layers import Dense, Input, Flatten
+from keras.layers import Dense, Input, Flatten, Dropout, BatchNormalization
 from keras.layers import Conv1D, MaxPooling1D, Embedding
 from keras.models import Model
+from keras.optimizers import Adam
+from keras import metrics
 
-
-BASE_DIR = ''
+BASE_DIR = '/Users/murariuf/ml-work'
 GLOVE_DIR = BASE_DIR + '/glove.6B/'
 TEXT_DATA_DIR = BASE_DIR + '/20_newsgroup/'
 MAX_SEQUENCE_LENGTH = 1000
@@ -38,7 +40,7 @@ VALIDATION_SPLIT = 0.2
 print('Indexing word vectors.')
 
 embeddings_index = {}
-f = open(os.path.join(GLOVE_DIR, 'glove.6B.100d.txt'))
+f = gzip.open(os.path.join(GLOVE_DIR, 'glove.6B.100d.txt.gz'))
 for line in f:
     values = line.split()
     word = values[0]
@@ -129,21 +131,31 @@ print('Training model.')
 sequence_input = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32')
 embedded_sequences = embedding_layer(sequence_input)
 x = Conv1D(128, 5, activation='relu')(embedded_sequences)
+x = BatchNormalization()(x)
 x = MaxPooling1D(5)(x)
+x = BatchNormalization()(x)
 x = Conv1D(128, 5, activation='relu')(x)
-x = MaxPooling1D(5)(x)
-x = Conv1D(128, 5, activation='relu')(x)
+x = BatchNormalization()(x)
 x = MaxPooling1D(35)(x)
+x = BatchNormalization()(x)
 x = Flatten()(x)
 x = Dense(128, activation='relu')(x)
-preds = Dense(len(labels_index), activation='softmax')(x)
+x = Dropout(.5)(x)
+x = Dense(128, activation='relu')(x)
+x = Dropout(.5)(x)
+x = BatchNormalization()(x)
+x = Dense(len(labels_index), activation='softmax')(x)
 
-model = Model(sequence_input, preds)
+opt = Adam(lr=0.01)
+model = Model(sequence_input, x)
+
 model.compile(loss='categorical_crossentropy',
-              optimizer='rmsprop',
+              optimizer=opt,
               metrics=['acc'])
+# .1 dropout 15998/15998 [==============================] - 4s - loss: 0.1638 - acc: 0.9432 - val_loss: 1.1344 - val_acc: 0.7617
+# .2 dropout 15998/15998 [==============================] - 4s - loss: 0.1712 - acc: 0.9429 - val_loss: 1.3736 - val_acc: 0.7427
 
 model.fit(x_train, y_train,
           batch_size=128,
-          epochs=10,
+          epochs=25,
           validation_data=(x_val, y_val))
