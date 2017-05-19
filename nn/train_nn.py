@@ -31,7 +31,7 @@ GLOVE_DIR = BASE_DIR + '/glove.6B/'
 TEXT_DATA_DIR = BASE_DIR + '/20_newsgroup/'
 MAX_SEQUENCE_LENGTH = 1000
 MAX_NB_WORDS = 20000
-EMBEDDING_DIM = 100
+EMBEDDING_DIM = 50
 VALIDATION_SPLIT = 0.2
 
 # first, build index mapping words in the embeddings set
@@ -40,7 +40,7 @@ VALIDATION_SPLIT = 0.2
 print('Indexing word vectors.')
 
 embeddings_index = {}
-f = gzip.open(os.path.join(GLOVE_DIR, 'glove.6B.100d.txt.gz'))
+f = gzip.open(os.path.join(GLOVE_DIR, 'glove.6B.50d.txt.gz'))
 for line in f:
     values = line.split()
     word = values[0]
@@ -136,12 +136,14 @@ x = MaxPooling1D(5)(x)
 x = BatchNormalization()(x)
 x = Conv1D(128, 5, activation='relu')(x)
 x = BatchNormalization()(x)
+x = MaxPooling1D(5)(x)
+x = BatchNormalization()(x)
+x = Conv1D(128, 5, activation='relu')(x)
+x = BatchNormalization()(x)
 x = MaxPooling1D(35)(x)
 x = BatchNormalization()(x)
 x = Flatten()(x)
-x = Dense(128, activation='relu')(x)
-x = Dropout(.5)(x)
-x = Dense(128, activation='relu')(x)
+x = Dense(256, activation='relu')(x)
 x = Dropout(.5)(x)
 x = BatchNormalization()(x)
 x = Dense(len(labels_index), activation='softmax')(x)
@@ -157,5 +159,5 @@ model.compile(loss='categorical_crossentropy',
 
 model.fit(x_train, y_train,
           batch_size=128,
-          epochs=25,
+          epochs=1,
           validation_data=(x_val, y_val))

@@ -2,7 +2,7 @@
 
 ## The plan
 
-1. get the data from [Hardvard](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/OMV93V)
+1. get the data from [Harvard](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/OMV93V)
 2. use a crawler and an instance in the cloud to crawl 3+ million web page and store the HTML they return
 3. go through the categories tree and select a subset of categories to predict
 4. get word embeddings from [Standford](http://nlp.stanford.edu/data/glove.6B.zip)

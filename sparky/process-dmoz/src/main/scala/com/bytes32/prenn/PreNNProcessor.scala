@@ -110,7 +110,7 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
         .parquet(websitesTextOutput)
         .as[WebSiteCategoriesText]
 
-      val wordTokens = (filterAndExpandWebSites(categories) _ andThen
+      val wordTokens: Dataset[WebSiteCategoriesText] = (filterAndExpandWebSites(categories) _ andThen
         excludeNonEnglishWebsitesFlatten).apply(dmozTextCats)
 
       wordTokens.write.option("compression", "snappy").parquet(websitesCleanOutput)
