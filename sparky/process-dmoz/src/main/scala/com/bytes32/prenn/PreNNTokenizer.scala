@@ -6,7 +6,11 @@ import org.apache.spark.ml.feature.{CountVectorizer, CountVectorizerModel, Strin
 import org.apache.spark.sql.functions.explode
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
 
+import scala.util.Random
+
 object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
+
+  type Vocabulary = Map[String, Int]
 
   def main(args: Array[String]): Unit = {
     val config = parse(args)
@@ -18,13 +22,40 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     val websitesCategoriesText = spark.read.parquet(config.websitesCleanPath).as[WebSiteCategoriesText]
 
     val (vocabulary: Map[String, Int], preFeatures) = getVocabularySplitTextIntoTokens(config.vocabSize, websitesCategoriesText)
-    val embeddings = generateEmbeddings(vocabulary, gloVectors)
+    val (embeddings, vocabWithEmbeddings: Vocabulary) = generateEmbeddings(vocabulary, gloVectors)
 
-    val (features, labels) = featuresAndLabels(config.sequenceLength, vocabulary, preFeatures)
-    features.write.json(config.outputPath + "/features")
-    embeddings.write.json(config.outputPath + "/embeddings")
-    labels.write.csv(config.outputPath + "/labels")
-    vocabulary.toSeq.toDF("word", "id").write.json("/vocabulary")
+
+    val (features, labels) = featuresAndLabels(config.sequenceLength, vocabWithEmbeddings, balanceDatSetsByCategory(preFeatures))
+    val featuresPath = config.outputPath + "/features"
+
+    runForOutput(featuresPath) {
+      features.write.json(featuresPath)
+    }
+
+    val embeddingsPath = config.outputPath + "/embeddings"
+    runForOutput(embeddingsPath) {
+      embeddings.write.json(embeddingsPath)
+    }
+
+    val labelsPath = config.outputPath + "/labels"
+    runForOutput(labelsPath) {
+      labels.write.csv(labelsPath)
+    }
+
+    val vocabularyPath = config.outputPath + "/vocabulary"
+    runForOutput(vocabularyPath) {
+      vocabWithEmbeddings.toSeq.toDF("word", "id").write.json(vocabularyPath)
+    }
+  }
+
+  def balanceDatSetsByCategory(features: DataFrame)(implicit spark: SparkSession): DataFrame = {
+    import spark.implicits._
+    val categoryCounts = features.groupBy('category).count()
+    categoryCounts.show(150)
+    val counts = categoryCounts.collect().map { case Row(category: String, count: Long) => category -> count }
+    val min = counts.map(_._2).min
+    val weighted = counts.map { case (name, count) => name -> (min.toDouble / count) }.toMap
+    features.stat.sampleBy("category", weighted, Random.nextLong())
   }
 
   def loadGloVectors(gloVectorsPath: String)(implicit spark: SparkSession): Dataset[GloVector] = {
@@ -36,25 +67,32 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     }
   }
 
-  def generateEmbeddings(vocabulary: Map[String, Int], gloVectors: Dataset[GloVector])
-                        (implicit spark: SparkSession): DataFrame = {
+  def generateEmbeddings(vocabulary: Vocabulary, gloVectors: Dataset[GloVector])
+                        (implicit spark: SparkSession): (DataFrame, Vocabulary) = {
     import spark.implicits._
     val gvSize = gloVectors.head().vector.length //too much?
 
     val zeroEmbedding = Seq(
-      (0, Seq.fill(gvSize)(0f))
-    ).toDF("id", "vector")
+      Seq.fill(gvSize)(0f)
+    ).toDF("vector")
 
-    val wordVectors = gloVectors.flatMap(gv => {
-      val wordIndex = vocabulary.get(gv.word)
-      wordIndex.map(id => id -> gv.vector)
-    }).toDF("id", "vector")
+    /* get embeddings only for words in vocabulary */
+    val wordVectors = gloVectors.select('word).map(_.getString(0)).collect().toSet
+    val newVocabulary = wordVectors.intersect(vocabulary.keySet).zipWithIndex.map {
+      case (word, i: Int) => word -> (i + 1)
+    }.toMap // all the words for which we have embeddings
+
+    val wordEmbeddings = gloVectors.flatMap { glV =>
+      newVocabulary.get(glV.word).map(id => id -> glV.vector)
+    }.toDF("id", "vector")
       .sort("id")
-
-    zeroEmbedding
-      .union(wordVectors)
       .drop("id")
+
+    val embeddings = zeroEmbedding
+      .drop("id", "word")
+      .union(wordEmbeddings)
       .coalesce(1)
+    (embeddings, newVocabulary)
   }
 
   case class WebSiteFeature(uri: String, origUri: String, paddedWords: Seq[Int], category: Seq[Int])
@@ -91,11 +129,16 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
                     vocabSize: Int = 20000,
                     sequenceLength: Int = 1000, local: Boolean = false)
 
-  def getVocabularySplitTextIntoTokens(vocabSize: Int, ds: Dataset[WebSiteCategoriesText])(implicit spark: SparkSession): (Map[String, Int], DataFrame) = {
+  def getVocabularySplitTextIntoTokens(vocabSize: Int, ds: Dataset[WebSiteCategoriesText])
+                                      (implicit spark: SparkSession): (Vocabulary, DataFrame) = {
+    import org.apache.spark.sql.functions.udf
     import spark.implicits._
 
-    val tkz = new Tokenizer().setInputCol("text").setOutputCol("tokens")
-    val tokens = tkz.transform(ds)
+    val processText = udf {
+      Text.splitAndClean
+    }
+
+    val tokens = ds.withColumn("tokens", processText('text))
 
     val countVectorizer = new CountVectorizer()
       .setInputCol("tokens")
@@ -108,7 +151,7 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     (vocabulary, expandCategories)
   }
 
-  def featuresAndLabels(sequenceLength: Int, vocabulary: Map[String, Int], source: DataFrame)(implicit spark: SparkSession): (Dataset[WebSiteFeature], Dataset[String]) = {
+  def featuresAndLabels(sequenceLength: Int, vocabulary: Vocabulary, source: DataFrame)(implicit spark: SparkSession): (Dataset[WebSiteFeature], Dataset[String]) = {
     import spark.implicits._
 
     val indexer = new StringIndexer()

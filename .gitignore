@@ -1,3 +1,4 @@
 .idea
 *.pyc
 target/
+.DS_Store

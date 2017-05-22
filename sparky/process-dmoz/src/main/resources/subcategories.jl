@@ -8,10 +8,7 @@
 {"name": "finance","filters": {"includes": [ "Home/Personal_Finance", "Business/Financial_Services"] }}
 {"name": "food","filters": {"includes": [ "Recreation/Food", "Shopping/Food"] }}
 {"name": "gardening","filters": {"includes": [ "Home/Gardening", "Shopping/Tools/Gardening", "Shopping/Home_and_Garden", "Business/Consumer_Goods_and_Services/Home_and_Garden"] }}
-{"name": "gossip","filters": {"includes": [ "Society/People/Celebrities/News_and_Media", "Arts/Television/Programs/Reality-Based/Gossip_and_News", "Home/Family/Multiple_Births/Celebrities"] }}
 {"name": "home","filters": {"includes": [ "Home"], "excludes": [ "Home/Gardening", "Home/Personal_Finance", "Home/Family/Multiple_Births/Celebrities"] }}
-{"name": "job","filters": {"includes": [ "Business/Employment"] }}
-{"name": "language","filters": {"includes": [ "Reference/Dictionaries/World_Languages", "Reference/Dictionaries/Vocabulary_Lists", "Reference/Thesauri", "Arts/Online_Writing/Poetry"] }}
 {"name": "medical","filters": {"includes": [ "Health/Medicine", "Business/Healthcare", "Health/Conditions_and_Diseases"] }}
 {"name": "music","filters": {"includes": [ "Arts/Music", "Business/Arts_and_Entertainment/Music"] }}
 {"name": "news","filters": {"includes": [ "News"], "excludes": [ "News/Weather"] }}
@@ -20,5 +17,4 @@
 {"name": "property","filters": {"includes": [ "Business/Real_Estate", "Business/Construction_and_Maintenance", "Science/Social_Sciences/Urban_and_Regional_Planning"] }}
 {"name": "science","filters": {"includes": [ "Science"], "excludes": [ "Science/Technology"] }}
 {"name": "technology","filters": {"includes": [ "Science/Technology", "Computers", "Shopping/Consumer_Electronics"] }}
-{"name": "travel","filters": {"includes": [ "Recreation/Travel"] }}
-{"name": "weather","filters": {"includes": [ "News/Weather"]}}
+{"name": "travel","filters": {"includes": [ "Recreation/Travel", "Home/Consumer_Information/Travel", "Shopping/Travel"] }}
