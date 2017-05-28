@@ -25,8 +25,10 @@ from keras.layers import Conv1D, MaxPooling1D, Embedding
 from keras.models import Model
 from keras.optimizers import Adam
 from keras import metrics
+from os.path import expanduser
 
-BASE_DIR = '/Users/murariuf/ml-work'
+home = expanduser("~")
+BASE_DIR = home + '/ml-work'
 GLOVE_DIR = BASE_DIR + '/glove.6B/'
 TEXT_DATA_DIR = BASE_DIR + '/20_newsgroup/'
 MAX_SEQUENCE_LENGTH = 1000

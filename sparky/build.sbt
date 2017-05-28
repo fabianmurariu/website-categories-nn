@@ -37,9 +37,27 @@ lazy val processDmoz = (project in file("process-dmoz")).
       "com.github.scopt" %% "scopt" % "3.5.0",
       "com.optimaize.languagedetector" % "language-detector" % "0.6" exclude("com.google.guava", "guava"),
       "com.google.guava" % "guava" % "16.0.1",
+      "org.scala-lang.modules" % "scala-xml_2.11" % "1.0.6",
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-mllib" % sparkVersion % Provided)
   )
 
-lazy val root = (project in file(".")).aggregate(processDmoz)
+lazy val serveDmoz = (project in file("serve-dmoz")).
+  configs(IntegrationTest).
+  settings(commonSettings: _*).
+  settings(Defaults.itSettings: _*).
+  settings(
+    name := "serve-dmoz",
+    resolvers ++= Seq(Resolver.sonatypeRepo("releases"), Resolver.sonatypeRepo("snapshots"), Resolver.mavenLocal),
+    libraryDependencies ++= Seq(
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
+      "org.jsoup" % "jsoup" % "1.10.2",
+      "com.github.scopt" %% "scopt" % "3.5.0",
+      "com.optimaize.languagedetector" % "language-detector" % "0.6" exclude("com.google.guava", "guava"),
+      "com.google.guava" % "guava" % "16.0.1",
+      "org.tensorflow" % "tensorflow" % "1.2.0-rc0")
+  )
+
+lazy val root = (project in file("."))
+  .aggregate(processDmoz, serveDmoz)

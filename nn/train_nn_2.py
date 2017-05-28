@@ -22,8 +22,10 @@ from keras.layers import Dense, Input, Flatten, Dropout, BatchNormalization
 from keras.layers import Conv1D, MaxPooling1D, Embedding
 from keras.models import Model
 from keras.optimizers import Adam
+from os.path import expanduser
 
-BASE_DIR = '/Users/murariuf/ml-work'
+home = expanduser("~")
+BASE_DIR = home + '/ml-work'
 MAX_SEQUENCE_LENGTH = 1000
 MAX_NB_WORDS = 20000
 EMBEDDING_DIM = 50
@@ -31,7 +33,7 @@ VALIDATION_SPLIT = 0.2
 
 # first, build index mapping words in the embeddings set
 # to their embedding vector
-pre_nn_output = '/Users/murariuf/ml-work/dmoz/websites-features'
+pre_nn_output = home + '/ml-work/dmoz/websites-features'
 embeddings_path = pre_nn_output + '/embeddings'
 labels_path = pre_nn_output + '/labels'
 features_path = pre_nn_output + '/features'
@@ -121,11 +123,11 @@ x = MaxPooling1D(35)(x)
 x = BatchNormalization()(x)
 x = Flatten()(x)
 x = Dense(512, activation='relu')(x)
-# x = Dropout(.5)(x)
+x = Dropout(.1)(x)
 x = BatchNormalization()(x)
 x = Dense(len(labels), activation='softmax')(x)
 
-opt = Adam(lr=0.01)
+opt = Adam()
 model = Model(sequence_input, x)
 
 model.compile(loss='categorical_crossentropy',
@@ -134,8 +136,13 @@ model.compile(loss='categorical_crossentropy',
 
 model.fit(x_train, y_train,
           batch_size=128,
-          epochs=100,
+          epochs=200,
           validation_data=(x_valid, y_valid))
+
+from tensorflow.python.saved_model import builder as saved_model_builder
+
+export_path = home + '/dmoz/model-tf-serve'
+builder = saved_model_builder.SavedModelBuilder(export_path)
 
 # model.fit_generator(train,
 #                     steps_per_epoch=3000,
