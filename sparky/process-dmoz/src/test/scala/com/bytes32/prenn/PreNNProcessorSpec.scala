@@ -51,7 +51,7 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
       FilterCategory("science", Set("Science"), Set("Science/Technology")),
       FilterCategory("technology", Set("Science/Technology"), Set.empty)
     )
-    val expected = Seq(WebSiteCategoriesText("uri1", "origUri1", Seq("technology"), "text1"))
+    val expected = Seq(WebSiteCategoriesText("uri1", "origUri1", Seq("technology"), "text1", Seq("Top/Science/Technology")))
     val actual = filterAndExpandWebSites(filters)(ws).collect()
 
     actual should contain theSameElementsAs expected
@@ -61,7 +61,7 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
     import spark.implicits._
     val ws = Seq(WebSiteCategoriesText("uri1", "origUri1", Seq("TV/Sports", "Sports", "Lifestyle"), "text1")).toDS()
     val filters = Seq(FilterCategory("sport", Set("TV/Sports"), Set.empty))
-    val expected = Seq(WebSiteCategoriesText("uri1", "origUri1", Seq("sport"), "text1"))
+    val expected = Seq(WebSiteCategoriesText("uri1", "origUri1", Seq("sport"), "text1", Seq("TV/Sports", "Sports", "Lifestyle")))
     val actual = filterAndExpandWebSites(filters)(ws).collect()
 
     actual should contain theSameElementsAs expected
