@@ -49,13 +49,21 @@ lazy val serveDmoz = (project in file("serve-dmoz")).
   settings(Defaults.itSettings: _*).
   settings(
     name := "serve-dmoz",
-    resolvers ++= Seq(Resolver.sonatypeRepo("releases"), Resolver.sonatypeRepo("snapshots"), Resolver.mavenLocal),
+    resolvers ++= Seq(Resolver.sonatypeRepo("releases"),
+      Resolver.sonatypeRepo("snapshots"),
+      Resolver.mavenLocal,
+      "twitter-repo" at "http://maven.twttr.com"),
     libraryDependencies ++= Seq(
       "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
       "org.jsoup" % "jsoup" % "1.10.2",
       "com.github.scopt" %% "scopt" % "3.5.0",
       "com.optimaize.languagedetector" % "language-detector" % "0.6" exclude("com.google.guava", "guava"),
       "com.google.guava" % "guava" % "16.0.1",
+      "com.twitter" %% "twitter-server" % "1.29.0",
+      "com.twitter" %% "finagle-stats" % "6.44.0",
+      "com.typesafe.akka" %% "akka-actor" % "2.5.2",
+      "com.typesafe.akka" %% "akka-testkit" % "2.5.2" % "test",
+      "org.mockito" % "mockito-all" % "1.10.19" % "test",
       "org.tensorflow" % "tensorflow" % "1.2.0-rc0")
   )
 
