@@ -11,7 +11,7 @@ pipeline {
         stage('Start Cluster') {
             steps {
                 script {
-                    sh "./01_start_cluster brave-monitor-160414 "
+                    sh "./01_start_cluster.sh brave-monitor-160414 "
                 }
             }
         }
