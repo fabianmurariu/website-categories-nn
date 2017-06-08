@@ -18,8 +18,14 @@ pipeline {
         stage('Run PreNN processor') {
             steps {
                 script {
-                    cluster = readFile '.cluster'
                     sh "./02_apply_categories_extract_text.sh "
+                }
+            }
+        }
+        stage('Run PreNN tokenizer') {
+            steps {
+                script {
+                    sh "./03_transform_to_features.sh "
                 }
             }
         }

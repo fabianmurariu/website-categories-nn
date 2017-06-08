@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 PROJECT=$1
 CLUSTER_NAME="cluster-1"
+EXISTS=$(gcloud dataproc clusters --project brave-monitor-160414 --format json list | jq -r '.[].clusterName=="cluster-1"')
+if [ "$EXISTS" == "false" ]; then
 gcloud dataproc clusters create ${CLUSTER_NAME} \
     --image-version preview \
     --zone europe-west1-c \
@@ -11,3 +13,6 @@ gcloud dataproc clusters create ${CLUSTER_NAME} \
     --worker-boot-disk-size 500 \
     --scopes 'https://www.googleapis.com/auth/cloud-platform' \
     --project ${PROJECT}
+else
+    echo "$CLUSTER_NAME exists"
+fi
