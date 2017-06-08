@@ -105,15 +105,15 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
         config.copy(local = true)
       )
 
-      opt[String]("vocabSize").optional().action((path, config) =>
+      opt[String]('v',"vocabSize").optional().action((path, config) =>
         config.copy(vocabSize = path.toInt)).text("vocabulary size default 20000")
-      opt[String]("sequenceLength").optional().action((path, config) =>
+      opt[String]('s',"sequenceLength").optional().action((path, config) =>
         config.copy(sequenceLength = path.toInt)).text("Size of a sentence default 1000")
-      opt[String]("websitesCleanPath").required().action((path, config) =>
+      opt[String]('w',"websitesCleanPath").required().action((path, config) =>
         config.copy(websitesCleanPath = path)).text("Path to output of categories and text")
-      opt[String]("gloVectorsPath").required().action((path, config) =>
+      opt[String]('g',"gloVectorsPath").required().action((path, config) =>
         config.copy(gloVectorsPath = path)).text("Path to word vectors")
-      opt[String]("outputPath").required().action((path, config) =>
+      opt[String]('o',"outputPath").required().action((path, config) =>
         config.copy(outputPath = path)).text("Path for the job output")
 
       override def reportError(msg: String): Unit = throw new IllegalArgumentException(s"$msg\n$usage")

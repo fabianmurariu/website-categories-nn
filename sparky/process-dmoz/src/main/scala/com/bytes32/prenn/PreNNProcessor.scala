@@ -69,13 +69,13 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
       opt[Unit]("local").action((_, config) =>
         config.copy(local = true)
       )
-      opt[String]("websitesRawInput").required().action((path, config) =>
+      opt[String]('r',"websitesRawInput").required().action((path, config) =>
         config.copy(websitesRawInput = path)).text("Path to the dmoz corpus with static webpages crawled")
-      opt[String]("websitesTextOutput").required().action((path, config) =>
+      opt[String]('t',"websitesTextOutput").required().action((path, config) =>
         config.copy(websitesTextOutput = path)).text("Path to output clean text for every webpage")
-      opt[String]("categoriesPath").optional().action((path, config) =>
+      opt[String]('c',"categoriesPath").optional().action((path, config) =>
         config.copy(categoriesPath = path)).text("Path to categories mapping as json lines")
-      opt[String]("websitesCleanOutput").optional().action((path, config) =>
+      opt[String]('w',"websitesCleanOutput").optional().action((path, config) =>
         config.copy(websitesCleanOutput = path)).text("Path to output of categories and tokens as array")
 
       override def reportError(msg: String): Unit = throw new IllegalArgumentException(s"$msg\n$usage")
