@@ -27,18 +27,14 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
 
   case class Config(websitesRawInput: String, websitesTextOutput: String, categoriesPath: String, websitesCleanOutput: String, local: Boolean = false)
 
-  case class WebSiteCategoriesText(uri: String, origUri: String, categories: Seq[String], text: String)
+  case class WebSiteCategoriesText(uri: String, origUri: String, categories: Seq[String], text: String, origCategories:Seq[String] = Seq.empty)
 
   case class FilterCategory(name: String, includes: Set[String], excludes: Set[String])
 
-  def excludeNonEnglishWebsitesFlatten(ws: Dataset[WebSiteCategoriesText])
-                                      (implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
-    import spark.implicits._
-    ws.rdd.filter {
-      case WebSiteCategoriesText(_, _, _, text) =>
-        val maybeEnglish = Language.detectEnglish(text)
-        maybeEnglish.isDefined
-    }.toDS()
+  def excludeNonEnglishWebsites(ws: Dataset[WebSiteCategoriesText])
+                               (implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
+
+    ws.filter { ws: WebSiteCategoriesText => Language.detectEnglish(ws.text).isDefined }
   }
 
   def checkCategory(dmozCat: String)(filterCat: String): Boolean = {
@@ -50,12 +46,12 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
     import spark.implicits._
 
     data.flatMap {
-      case WebSiteCategoriesText(uri, origUri, categories, text) =>
+      case WebSiteCategoriesText(uri, origUri, cats: Seq[String], text, _) =>
         for {
-          dmozCat: String <- categories
+          dmozCat: String <- cats
           categories: FilterCategory <- filterCategories
           if categories.includes.exists(checkCategory(dmozCat)) && !categories.excludes.exists(checkCategory(dmozCat))
-        } yield WebSiteCategoriesText(uri, origUri, List(categories.name), text)
+        } yield WebSiteCategoriesText(uri, origUri, List(categories.name), text, cats)
     }
   }
 
@@ -111,7 +107,7 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
         .as[WebSiteCategoriesText]
 
       val wordTokens: Dataset[WebSiteCategoriesText] = (filterAndExpandWebSites(categories) _ andThen
-        excludeNonEnglishWebsitesFlatten).apply(dmozTextCats)
+        excludeNonEnglishWebsites).apply(dmozTextCats)
 
       wordTokens.write.option("compression", "snappy").parquet(websitesCleanOutput)
     }

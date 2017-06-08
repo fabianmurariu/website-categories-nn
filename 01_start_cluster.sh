@@ -2,6 +2,7 @@
 PROJECT=$1
 CLUSTER_NAME="cluster-1"
 gcloud dataproc clusters create ${CLUSTER_NAME} \
+    --image-version preview \
     --zone europe-west1-c \
     --master-machine-type n1-standard-4 \
     --master-boot-disk-size 500 \

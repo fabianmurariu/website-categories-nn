@@ -75,8 +75,8 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
       FilterCategory("lifestyle", Set("Lifestyle"), Set.empty)
     )
     val expected = Seq(
-      WebSiteCategoriesText("uri1", "origUri1", Seq("sport"), "text1"),
-      WebSiteCategoriesText("uri1", "origUri1", Seq("lifestyle"), "text1")
+      WebSiteCategoriesText("uri1", "origUri1", Seq("sport"), "text1", Seq("TV/Sports", "Sports", "Lifestyle")),
+      WebSiteCategoriesText("uri1", "origUri1", Seq("lifestyle"), "text1", Seq("TV/Sports", "Sports", "Lifestyle"))
     )
 
     val actual = filterAndExpandWebSites(filters)(ws).collect()
@@ -91,7 +91,7 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
       Seq(WebSiteCategoriesText("uri1", "origUri1", Seq("general", "french"), "Le jour est brillant et nous avons des journaux à recevoir"),
         WebSiteCategoriesText("uri2", "origUri2", Seq("fonts"), "the quick brown fox jumps over the lazy ass dog")).toDS
 
-    val actual = excludeNonEnglishWebsitesFlatten(samples).collect()
+    val actual = excludeNonEnglishWebsites(samples).collect()
     actual should contain theSameElementsAs List(
       WebSiteCategoriesText("uri2", "origUri2", Seq("fonts"), "the quick brown fox jumps over the lazy ass dog"))
   }
