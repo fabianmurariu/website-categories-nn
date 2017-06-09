@@ -29,5 +29,12 @@ pipeline {
                 }
             }
         }
+        stage('Shutdown Cluster') {
+            steps {
+                script {
+                    sh "./04_shutdown_cluster.sh "
+                }
+            }
+        }
     }
 }
