@@ -14,7 +14,7 @@ trait TextPredictService extends TextPredict {
 
   val system = ActorSystem("batch-predictor")
   lazy val batcher = system.actorOf(Props(classOf[Batcher[Array[Int], Array[Float]]], self))
-  
+
 //  lazy val vocab = Vocabulary.dict()
 //
 //  def predict(text:TextPredictRequest):Future[TextPredictResponse] = {
