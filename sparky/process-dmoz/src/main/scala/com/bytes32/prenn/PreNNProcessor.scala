@@ -90,26 +90,26 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
 
     implicit val spark = makeSparkSession("PreNNProcessor", local)
     import spark.implicits._
-    /* extract the words from the websites */
+    /* filter non-english websites */
     runForOutput(websitesTextOutput) {
       val rawHtml = spark.read.json(websitesRawInput)
-      extractTextFromRawHtmlWithCategories(rawHtml)
+      (extractTextFromRawHtmlWithCategories _ andThen excludeNonEnglishWebsites)(rawHtml)
         .write
         .option("compression", "snappy")
         .parquet(websitesTextOutput)
     }
 
-    /* convert to local categories and cleanup non-english words */
+    /* map to our categories */
     runForOutput(websitesCleanOutput) {
       val categories = loadCategories(categoriesPath)
       val dmozTextCats = spark.read
         .parquet(websitesTextOutput)
         .as[WebSiteCategoriesText]
 
-      val wordTokens: Dataset[WebSiteCategoriesText] = (filterAndExpandWebSites(categories) _ andThen
-        excludeNonEnglishWebsites).apply(dmozTextCats)
-
-      wordTokens.write.option("compression", "snappy").parquet(websitesCleanOutput)
+      filterAndExpandWebSites(categories)(dmozTextCats)
+        .write
+        .option("compression", "snappy")
+        .parquet(websitesCleanOutput)
     }
   }
 

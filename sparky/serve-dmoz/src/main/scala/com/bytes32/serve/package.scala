@@ -11,9 +11,9 @@ package object serve {
 
   case object BatchSubmit
 
-  case class TextPredictRequest(texts: Seq[String])
+  case class TextPredictRequest(text: String)
 
-  case class TextPredictResponse(labels: Seq[Vector[Float]])
+  case class TextPredictResponse(labels: Vector[Float])
 
 
 }
