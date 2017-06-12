@@ -44,7 +44,7 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
 
     val vocabularyPath = config.outputPath + "/vocabulary"
     runForOutput(vocabularyPath) {
-      vocabWithEmbeddings.toSeq.toDF("word", "id").write.json(vocabularyPath)
+      vocabWithEmbeddings.toSeq.toDF("word", "id").repartition(1).write.json(vocabularyPath)
     }
   }
 

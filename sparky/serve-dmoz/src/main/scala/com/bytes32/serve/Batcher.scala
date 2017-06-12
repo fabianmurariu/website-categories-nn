@@ -9,6 +9,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
   * Created by murariuf on 03/06/2017.
+  * TODO: figure out how to use Future.batcher
   */
 class Batcher[A, B](fn: Seq[A] => Seq[B]) extends Actor with LazyLogging {
 

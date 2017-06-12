@@ -13,7 +13,7 @@ package object serve {
 
   case class TextPredictRequest(text: String)
 
-  case class TextPredictResponse(labels: Vector[Float])
+  case class TextPredictResponse(labels: Seq[Float])
 
 
 }

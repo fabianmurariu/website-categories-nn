@@ -14,7 +14,7 @@ object TfModelLoader {
     val session = smb.session()
 
     val inputSize = 1000
-    val inputTensor = Tensor.create(sample)
+    val inputTensor = Tensor.create(sample2)
 
     val result: Tensor = session
       .runner()
@@ -29,6 +29,8 @@ object TfModelLoader {
 
     println(matrix.toVector.map(_.toVector))
   }
+
+  def sample2: Array[Array[Int]] = Array(Array[Int](18810, 19649, 9882, 9443, 6679, 7657, 18810, 4095, 12749, 845).padTo(1000, 0))
 
   def sample: Array[Array[Int]] = Array(Array[Int](16170, 10206, 19649, 1736, 8026, 5146, 13548, 16170, 10206,
     7591, 1606, 8497, 716, 2448, 18810, 8274, 1736, 619,
