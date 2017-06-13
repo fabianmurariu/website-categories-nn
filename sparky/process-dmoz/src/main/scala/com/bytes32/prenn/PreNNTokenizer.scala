@@ -46,6 +46,28 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     runForOutput(vocabularyPath) {
       vocabWithEmbeddings.toSeq.toDF("word", "id").repartition(1).write.json(vocabularyPath)
     }
+
+    val classWeightsPath = config.outputPath + "/class-weights"
+    runForOutput(classWeightsPath) {
+      val classWeightsDF = Seq("classWeights" -> classWeights(websitesCategoriesText)).toDF("name", "weights").coalesce(1)
+      classWeightsDF.write.json(classWeightsPath)
+    }
+  }
+
+  def classWeights(ds: Dataset[WebSiteCategoriesText])(implicit spark: SparkSession): Map[String, Double] = {
+    import spark.implicits._
+    val categoryCount: Map[String, Long] = ds
+      .select("categories")
+      .selectExpr("explode(categories) as category")
+      .groupBy("category")
+      .count()
+      .map { case Row(category: String, count: Long) => category -> count }
+      .collect()
+      .toMap
+
+    val max = categoryCount.values.max.toDouble
+
+    categoryCount.map { case (cat, count) => cat -> max / count }
   }
 
   def balanceDatSetsByCategory(features: DataFrame)(implicit spark: SparkSession): DataFrame = {
@@ -105,15 +127,15 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
         config.copy(local = true)
       )
 
-      opt[String]('v',"vocabSize").optional().action((path, config) =>
+      opt[String]('v', "vocabSize").optional().action((path, config) =>
         config.copy(vocabSize = path.toInt)).text("vocabulary size default 20000")
-      opt[String]('s',"sequenceLength").optional().action((path, config) =>
+      opt[String]('s', "sequenceLength").optional().action((path, config) =>
         config.copy(sequenceLength = path.toInt)).text("Size of a sentence default 1000")
-      opt[String]('w',"websitesCleanPath").required().action((path, config) =>
+      opt[String]('w', "websitesCleanPath").required().action((path, config) =>
         config.copy(websitesCleanPath = path)).text("Path to output of categories and text")
-      opt[String]('g',"gloVectorsPath").required().action((path, config) =>
+      opt[String]('g', "gloVectorsPath").required().action((path, config) =>
         config.copy(gloVectorsPath = path)).text("Path to word vectors")
-      opt[String]('o',"outputPath").required().action((path, config) =>
+      opt[String]('o', "outputPath").required().action((path, config) =>
         config.copy(outputPath = path)).text("Path for the job output")
 
       override def reportError(msg: String): Unit = throw new IllegalArgumentException(s"$msg\n$usage")

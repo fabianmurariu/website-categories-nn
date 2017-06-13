@@ -58,4 +58,20 @@ class PreNNTokenizerSpec extends FlatSpec with Matchers with HasSpark {
     )
   }
 
+  it should "create class weights " in {
+    import spark.implicits._
+    val sample = Seq(
+      WebSiteCategoriesText("uri1", "origUri1", Seq("sport"), ""),
+      WebSiteCategoriesText("uri3", "origUri3", Seq("sport"), ""),
+      WebSiteCategoriesText("uri3", "origUri3", Seq("health"), ""),
+      WebSiteCategoriesText("uri3", "origUri3", Seq("health"), ""),
+      WebSiteCategoriesText("uri3", "origUri3", Seq("health"), ""),
+      WebSiteCategoriesText("uri3", "origUri3", Seq("health"), ""),
+      WebSiteCategoriesText("uri3", "origUri3", Seq("health"), ""),
+      WebSiteCategoriesText("uri3", "origUri3", Seq("technology"), "")
+    ).toDS()
+
+    PreNNTokenizer.classWeights(sample) should be(Map("sport" -> 5f / 2, "health" -> 1f, "technology" -> 5f / 1))
+  }
+
 }
