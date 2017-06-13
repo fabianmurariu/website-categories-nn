@@ -36,6 +36,9 @@ object Vocabulary {
     d
   }
 
+  def mapsWordToIndex(d:Map[String,Int])(word:String):Int =
+    d.getOrElse(word, 0)
+
 }
 
 case class WordIndex(word: String, id: String)

@@ -5,15 +5,10 @@ package com.bytes32
   */
 package object serve {
 
-  case class BatchEval[T](t: T)
+  case class TextPredictReq(texts: Seq[String])
 
-  case class EvalResponse[T](t: T)
+  case class TextPredictRsp(preds: Seq[TextPrediction] = Seq.empty)
 
-  case object BatchSubmit
-
-  case class TextPredictRequest(text: String)
-
-  case class TextPredictResponse(labels: Seq[Float])
-
+  case class TextPrediction(predictions: Seq[Float], labels: Seq[String] = Seq.empty, max2: Seq[String] = Seq.empty)
 
 }

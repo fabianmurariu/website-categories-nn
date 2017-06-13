@@ -40,7 +40,7 @@ class VocabularySpec extends FlatSpec with Matchers {
 
     val v = new Vocabulary {
       val d = Vocabulary.dict(words)
-      override val vocab: (String) => Int = {s => d.getOrElse(s, 0)}
+      override val vocab: (String) => Int = Vocabulary.mapsWordToIndex(d)
 
     }
 
