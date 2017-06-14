@@ -24,8 +24,7 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     val (vocabulary: Map[String, Int], preFeatures) = getVocabularySplitTextIntoTokens(config.vocabSize, websitesCategoriesText)
     val (embeddings, vocabWithEmbeddings: Vocabulary) = generateEmbeddings(vocabulary, gloVectors)
 
-
-    val (features, labels) = featuresAndLabels(config.sequenceLength, vocabWithEmbeddings, balanceDatSetsByCategory(preFeatures))
+    val (features, labels) = featuresAndLabels(config.sequenceLength, vocabWithEmbeddings, preFeatures)
     val featuresPath = config.outputPath + "/features"
 
     runForOutput(featuresPath) {
@@ -68,16 +67,6 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     val max = categoryCount.values.max.toDouble
 
     categoryCount.map { case (cat, count) => cat -> max / count }
-  }
-
-  def balanceDatSetsByCategory(features: DataFrame)(implicit spark: SparkSession): DataFrame = {
-    import spark.implicits._
-    val categoryCounts = features.groupBy('category).count()
-    categoryCounts.show(150)
-    val counts = categoryCounts.collect().map { case Row(category: String, count: Long) => category -> count }
-    val min = counts.map(_._2).min
-    val weighted = counts.map { case (name, count) => name -> (min.toDouble / count) }.toMap
-    features.stat.sampleBy("category", weighted, Random.nextLong())
   }
 
   def loadGloVectors(gloVectorsPath: String)(implicit spark: SparkSession): Dataset[GloVector] = {

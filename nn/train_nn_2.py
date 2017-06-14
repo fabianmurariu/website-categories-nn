@@ -37,12 +37,14 @@ pre_nn_output = home + '/ml-work/dmoz/websites-features'
 embeddings_path = pre_nn_output + '/embeddings'
 labels_path = pre_nn_output + '/labels'
 features_path = pre_nn_output + '/features'
+class_weights_path = pre_nn_output + '/class-weights'
 
 print('Indexing word vectors.')
 
 embeddings_files = glob.glob(embeddings_path + '/*')
 label_files = glob.glob(labels_path + '/*')
 features_files = glob.glob(features_path + '/*')
+class_weights_files = glob.glob(features_path + '/*')
 
 
 def read_file_lines(file_path, fn):
@@ -61,6 +63,8 @@ embedding_matrix = np.array(
 labels = list(itertools.chain(*[read_file_lines(f, lambda line: line.strip()) for f in label_files]))
 
 num_words = min(MAX_NB_WORDS, len(embedding_matrix))
+
+class_weights = json.loads(list(itertools.chain(*[read_file_lines(f, lambda line: line.strip()) for f in class_weights_files]))[0])
 
 print('Found %s words' % num_words)
 
