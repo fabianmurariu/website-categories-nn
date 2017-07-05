@@ -8,7 +8,7 @@ lazy val commonSettings = Seq(
   parallelExecution in IntegrationTest := false,
   scalacOptions := Seq("-Ylog-classpath", "-unchecked", "-deprecation", "-feature", "-encoding", "utf8", "-target:jvm-1.8", "-Xfatal-warnings", "-Xfuture", "-language:postfixOps"),
   libraryDependencies ++= Seq(
-    "org.scalactic" %% "scalactic" % "3.0.1",
+    "org.scalactic" %% "scalactic" % "3.0.1" % Test,
     "org.scalatest" %% "scalatest" % "3.0.1" % Test
   ),
   assemblyMergeStrategy in assembly := {

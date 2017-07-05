@@ -10,4 +10,6 @@ class TextPredictController @Inject()(predictService: PredictService) extends Co
 
   post("/predict")(predictService.predict)
 
+  post("/predictWebSite")(predictService.predictWebSite)
+
 }

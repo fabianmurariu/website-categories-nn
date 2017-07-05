@@ -59,6 +59,6 @@ object PredictModule extends TwitterModule {
 
   @Singleton
   @Provides
-  def predictService(predictor: Predictor, word2Index: String => Int): PredictService =
-    new PredictService(predictor, word2Index)
+  def predictService(predictor: Predictor, word2Index: String => Int, labels:Labels): PredictService =
+    new PredictService(predictor, word2Index, labels)
 }

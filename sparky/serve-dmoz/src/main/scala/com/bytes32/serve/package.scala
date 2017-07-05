@@ -11,4 +11,6 @@ package object serve {
 
   case class TextPrediction(predictions: Seq[Float], labels: Seq[String] = Seq.empty, max2: Seq[String] = Seq.empty)
 
+  case class WebSitePredictReq(uris: Seq[String])
+
 }
