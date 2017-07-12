@@ -2,6 +2,7 @@ package com.bytes32.prenn
 
 import com.bytes32.prenn.PreNNProcessor.WebSiteCategoriesText
 import org.apache.spark.sql.{Row, SparkSession}
+import org.scalacheck.Gen
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
@@ -74,4 +75,31 @@ class PreNNTokenizerSpec extends FlatSpec with Matchers with HasSpark {
     PreNNTokenizer.classWeights(sample) should be(Map("sport" -> 5f / 2, "health" -> 1f, "technology" -> 5f / 1))
   }
 
+
+  it should "split the dataset into training, test and validation" in {
+    import spark.implicits._
+    val sample = sampleGen(genFeatures).take(10000).toDS()
+
+    val sets = PreNNTokenizer.splitTrainTestValid(sample)
+    val trainCount = sets("train").count()
+    val testCount = sets("test").count()
+    val validCount = sets("valid").count()
+
+    7200 to 8800 should contain(trainCount)
+    900 to 1100 should contain(testCount)
+    900 to 1100 should contain(validCount)
+  }
+
+  lazy val genFeatures: Gen[WebSiteFeature] = for {
+    uri <- Gen.alphaNumStr
+    origUri <- Gen.alphaNumStr
+    features <- Gen.buildableOfN[Seq[Int], Int](10, Gen.choose(0, 50))
+    cats: Seq[Int] <- Gen.oneOf(List(Seq(0, 1), Seq(1, 0)))
+  } yield WebSiteFeature(uri, origUri, features, cats)
+
+  def sampleGen[T](g: Gen[T], failBudget: Int = 10): Stream[T] = g.sample match {
+    case Some(t) => t #:: sampleGen(g, failBudget)
+    case None if failBudget > 0 => sampleGen(g, failBudget - 1)
+    case None => Stream.empty[T]
+  }
 }

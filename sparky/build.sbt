@@ -6,10 +6,11 @@ lazy val commonSettings = Seq(
   scalaVersion := "2.11.8",
   parallelExecution in Test := false,
   parallelExecution in IntegrationTest := false,
-  scalacOptions := Seq("-Ylog-classpath", "-unchecked", "-deprecation", "-feature", "-encoding", "utf8", "-target:jvm-1.8", "-Xfatal-warnings", "-Xfuture", "-language:postfixOps"),
+  scalacOptions := Seq("-unchecked", "-deprecation", "-feature", "-encoding", "utf8", "-target:jvm-1.8", "-Xfatal-warnings", "-Xfuture", "-language:postfixOps"),
   libraryDependencies ++= Seq(
     "org.scalactic" %% "scalactic" % "3.0.1" % Test,
-    "org.scalatest" %% "scalatest" % "3.0.1" % Test
+    "org.scalatest" %% "scalatest" % "3.0.1" % Test,
+    "org.scalacheck" %% "scalacheck" % "1.13.5" % Test
   ),
   assemblyMergeStrategy in assembly := {
     case PathList("org.apache.spark.sql.sources.DataSourceRegister") => MergeStrategy.concat

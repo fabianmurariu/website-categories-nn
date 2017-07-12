@@ -4,11 +4,37 @@ import com.bytes32.prenn.PreNNProcessor.WebSiteCategoriesText
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.spark.ml.feature.{CountVectorizer, CountVectorizerModel, StringIndexer, Tokenizer}
 import org.apache.spark.sql.functions.explode
-import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
-
-import scala.util.Random
+import org.apache.spark.sql._
 
 object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
+
+  import org.apache.spark.ml.feature.Bucketizer
+
+  def splitTrainTestValid(features: Dataset[WebSiteFeature], buckets: Array[Double] = Array(0, 0.1, 0.2, 1), labels: Seq[String] = Seq("valid", "test", "train"))
+                         (implicit spark: SparkSession): Map[String, Dataset[WebSiteFeature]] = {
+    import spark.implicits._
+    val splitOnColumn = "split_on"
+    val bucketizer = new Bucketizer()
+      .setInputCol(splitOnColumn)
+      .setSplits(buckets)
+      .setOutputCol("set")
+
+    val splitSet = bucketizer.transform(features.withColumn(splitOnColumn, functions.rand()))
+    val dataSets: Map[String, Dataset[WebSiteFeature]] = Array.tabulate(buckets.length - 1) {
+      i =>
+        val subset = splitSet
+          .where('set === i)
+          .drop("set")
+          .as[WebSiteFeature]
+
+        labels(i) -> subset
+    }.toMap
+
+    dataSets
+  }
+
+  def sample(t: Double, dist: Seq[(String, Double)]): String = ???
+
 
   type Vocabulary = Map[String, Int]
 

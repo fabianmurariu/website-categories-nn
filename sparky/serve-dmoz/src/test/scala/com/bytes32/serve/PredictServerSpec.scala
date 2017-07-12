@@ -3,6 +3,7 @@ package com.bytes32.serve
 import com.twitter.finagle.http.Status._
 import com.twitter.finatra.http.EmbeddedHttpServer
 import com.twitter.inject.server.FeatureTest
+import com.twitter.io.Buf
 
 class PredictServerSpec extends FeatureTest {
 
@@ -35,7 +36,7 @@ class PredictServerSpec extends FeatureTest {
   }
 
   test("PredictServer#sports predict technology category from pcworld.co.uk") {
-    server.httpPost(
+    val response = server.httpPost(
       path = "/predictWebSite",
       postBody =
         """
@@ -43,8 +44,17 @@ class PredictServerSpec extends FeatureTest {
           "uris": ["http://www.pcworld.co.uk"]
         }
         """,
-      andExpect = Ok,
-      withBody = """{"preds":[{"predictions":[2.4127767E-17,3.6968116E-18,4.647949E-16,2.220812E-18,4.6302355E-23,7.523876E-23,4.5511077E-20,1.0,1.6818894E-20,1.9745627E-16,3.3073075E-19,3.0259375E-20,1.01233305E-13,6.40875E-11,8.78994E-28,5.3559624E-24,5.991734E-18,7.302525E-30,1.8646949E-13,9.0569984E-21],"labels":["entertainment","news","finance","education","medical","sport","gardening","technology","music","cars","science","food","fashion","photography","health","bikes","property","parents","home","travel"],"max2":["technology","photography"]}]}""")
+      andExpect = Ok)
+
+    assert(response.content.toUTF8String.contains(""","max2":["technology""""))
+  }
+
+  implicit class BufOps(val b:Buf) {
+    def toUTF8String:String = {
+      val arr = new Array[Byte](b.length)
+      b.write(arr, 0)
+      new String(arr, "UTF-8")
+    }
   }
 
 }
