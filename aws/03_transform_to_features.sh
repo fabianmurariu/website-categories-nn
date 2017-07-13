@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -e
+set -x
 CLUSTER=$1
 OUTPUT=${ROOT}/process
 aws emr --region eu-west-1 add-steps --cluster-id ${CLUSTER}\
