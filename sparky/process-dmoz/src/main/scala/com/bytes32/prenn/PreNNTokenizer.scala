@@ -53,8 +53,15 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     val (features, labels) = featuresAndLabels(config.sequenceLength, vocabWithEmbeddings, preFeatures)
     val featuresPath = config.outputPath + "/features"
 
-    runForOutput(featuresPath) {
-      features.write.json(featuresPath)
+    val featSplit = splitTrainTestValid(features)
+    val trainPath = featuresPath + "/train"
+    val testPath = featuresPath + "/test"
+    val validPath = featuresPath + "/valid"
+
+    runForOutput(trainPath, testPath, validPath) {
+      featSplit("train").write.json(trainPath)
+      featSplit("test").write.json(testPath)
+      featSplit("valid").write.json(validPath)
     }
 
     val embeddingsPath = config.outputPath + "/embeddings"

@@ -24,8 +24,6 @@ CLUSTERID=$(aws emr create-cluster \
                  --applications Name=Ganglia Name=Hadoop Name=Hue Name=Spark \
                  --ec2-attributes ${EC2_ATTRIBUTES} \
                  --service-role EMR_DefaultRole \
-                 --termination-protected \
-                 --auto-terminate \
                  --enable-debugging \
                  --log-uri 's3n://aws-logs-386296384021-eu-west-1/elasticmapreduce/' \
                  --instance-groups '[{"InstanceCount":1,"InstanceGroupType":"MASTER","InstanceType":"m4.2xlarge","Name":"Master instance group","BidPrice":"0.20"},{"InstanceCount":4,"InstanceGroupType":"CORE","InstanceType":"m4.2xlarge","Name":"Core instance group","BidPrice":"0.20"}]' \
