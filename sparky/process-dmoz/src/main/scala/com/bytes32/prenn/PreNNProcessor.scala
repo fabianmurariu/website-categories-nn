@@ -119,7 +119,7 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging {
     rawHtml.flatMap {
       r: Row =>
         expectedFields.map(name => r.getAs[String](name)) match {
-          case orig_domain :: domain :: categories :: text :: Nil if text.nonEmpty =>
+          case orig_domain :: domain :: categories :: text :: Nil if text != null && text.nonEmpty =>
             try {
               val innerHtmlText = Jsoup.parse(text).text()
               List(WebSiteCategoriesText(domain, orig_domain, categories.split("\\|"), innerHtmlText))
