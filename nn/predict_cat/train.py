@@ -7,12 +7,13 @@ from glob import glob
 import numpy as np
 from keras.layers import Conv1D, MaxPooling1D, Embedding
 from keras.layers import Dense, Input, Flatten, Dropout, BatchNormalization
-from keras.layers.recurrent import LSTM
 from keras.models import Model
 from keras.models import load_model
 from keras.optimizers import Adam
 from keras.preprocessing import sequence
 from os import path
+import gzip
+
 
 def grouper(iterable, chunk_size):
     a = iter(iterable)
@@ -25,7 +26,7 @@ def grouper(iterable, chunk_size):
 
 
 def read_file_lines(file_path, fn):
-    fh = open(file_path, 'r')
+    fh = gzip.open(file_path, 'r') if str(file_path).endswith(".gz") else open(file_path, 'r')
     while True:
         line = fh.readline()
         if not line:

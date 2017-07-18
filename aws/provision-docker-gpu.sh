@@ -83,6 +83,8 @@ sudo cp include/* /usr/local/cuda/include/
 sudo apt-get clean
 sudo apt-get autoclean
 
+sudo ldconfig /usr/local/cuda/lib64
+
 # Test libs work
 echo "from keras import backend as K" | python
 echo "import tensorflow as tf" | python
@@ -94,3 +96,8 @@ conda install scikit-learn
 jupyter notebook --generate-config
 echo "c.NotebookApp.ip = '*'
 c.NotebookApp.open_browser = False" >> $HOME/.jupyter/jupyter_notebook_config.py
+
+# DLib
+sudo apt-get -y install cmake build-essential libgtk-3-dev libboost-all-dev
+pip install opencv-python
+pip install dlib
