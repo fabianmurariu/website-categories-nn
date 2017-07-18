@@ -27,7 +27,6 @@ def test_data_point():
     actual = train.data_point("""{"paddedWords":[3540,14221,3540,8227,17329,5953,17826],"category":[1,0]}""")
     assert np.array_equal(actual[0], np.array([3540, 14221, 3540, 8227, 17329, 5953, 17826]))
     assert np.array_equal(actual[1], np.array([1, 0]))
-    assert actual[2] == 2279133941201292847
 
 
 def test_create_batch():

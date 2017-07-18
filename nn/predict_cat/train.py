@@ -14,7 +14,6 @@ from keras.optimizers import Adam
 from keras.preprocessing import sequence
 from os import path
 
-
 def grouper(iterable, chunk_size):
     a = iter(iterable)
     while True:
@@ -70,27 +69,32 @@ def data_point(line):
     point = json.loads(line)
     x1 = np.array(point['paddedWords'])
     y1 = np.array(point['category'])
-    return x1, y1, hash(line)
+    return x1, y1
 
 
-def create_batch(b, max_seq_length):
-    x = sequence.pad_sequences(np.array([x for x, _ in b]), maxlen=max_seq_length) if max_seq_length else np.array([x for x, _ in b])
+def create_batch(b, max_seq_length=None):
+    x = sequence.pad_sequences(np.array([x for x, _ in b]), maxlen=max_seq_length) if max_seq_length else np.array(
+        [x for x, _ in b])
     y = np.array([y for _, y in b])
     return x, y
 
 
 def get_data(features_path, batch_size, max_seq_length):
+    train_path = features_path + "/train"
+    valid_path = features_path + "/valid"
+    test_path = features_path + "/test"
     # valid
-    ds1 = list(read_lines(data_point, features_path + '/valid2.json'))
-    valid_ds = [create_batch(b, max_seq_length) for b in grouper([(x, y) for x, y, _ in ds1], batch_size)]
-    valid_set = set(z for _, _, z in ds1)
-    print("got validation")
-    # train
-    ds2 = read_lines_paths(data_point, glob(features_path + '/part*'), True)
-    lazy_train_set = ((x, y) for x, y, z in ds2 if z not in valid_set)
-    train_ds = (create_batch(b, max_seq_length) for b in grouper(lazy_train_set, batch_size))
+    ds1 = read_lines_paths(data_point, glob(valid_path + '/part*'), True)
+    valid_ds = (create_batch(b, max_seq_length) for b in grouper(ds1, batch_size))
 
-    return valid_ds, train_ds
+    # train
+    ds2 = read_lines_paths(data_point, glob(train_path + '/part*'), True)
+    train_ds = (create_batch(b, max_seq_length) for b in grouper(ds2, batch_size))
+
+    ds3 = read_lines_paths(data_point, glob(test_path + '/part*'), True)
+    test_ds = (create_batch(b, max_seq_length) for b in grouper(ds3, batch_size))
+
+    return train_ds, valid_ds, test_ds
 
 
 def build_model(embeddings_path, labels, max_nb_words, embedding_dim=50, max_seq_length=1000):
@@ -135,9 +139,11 @@ def build_model(embeddings_path, labels, max_nb_words, embedding_dim=50, max_seq
 
 
 def fit_model(model, valid_ds, train_ds, class_weights):
-    model.fit_generator(train_ds, validation_data=itertools.cycle(valid_ds), steps_per_epoch=3000,
-                        validation_steps=len(valid_ds),
-                        epochs=10, class_weight=class_weights)
+    steps_per_epoch = 3000
+    epochs = 10
+    model.fit_generator(train_ds, validation_data=valid_ds, steps_per_epoch=steps_per_epoch,
+                        validation_steps=steps_per_epoch / 10,
+                        epochs=epochs, class_weight=class_weights)
 
 
 def save_model(model, path):
@@ -165,7 +171,7 @@ if __name__ == "__main__":
     print("labels count %s" % len(labels))
     class_weights = class_weights(class_weights_path + '/*', labels)
     print("loading data")
-    valid_ds, train_ds = get_data(features_path, batch_size, MAX_SEQUENCE_LENGTH)
+    train_ds, valid_ds, test_ds = get_data(features_path, batch_size, MAX_SEQUENCE_LENGTH)
     print("building model")
     model_path = BASE_DIR + '/dmoz/model-keras'
     model = load_model(model_path) if path.exists(model_path) else build_model(embeddings_path, labels, MAX_NB_WORDS,
