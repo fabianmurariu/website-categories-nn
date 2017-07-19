@@ -78,16 +78,20 @@ class PreNNTokenizerSpec extends FlatSpec with Matchers with HasSpark {
 
   it should "split the dataset into training, test and validation" in {
     import spark.implicits._
-    val sample = sampleGen(genFeatures).take(10000).toDS()
+    val sample = sampleGen(genFeatures).take(10000).toVector.toDS()
 
     val sets = PreNNTokenizer.splitTrainTestValid(sample)
     val trainCount = sets("train").count()
     val testCount = sets("test").count()
     val validCount = sets("valid").count()
 
-    7200 to 8800 should contain(trainCount)
-    900 to 1100 should contain(testCount)
-    900 to 1100 should contain(validCount)
+    trainCount should === (8000L +- 800L)
+    testCount should be (1000L +- 100)
+    validCount should be (1000L +- 100)
+
+    sets("train").collect().toSet.intersect(sets("test").collect().toSet) shouldBe empty
+    sets("train").collect().toSet.intersect(sets("valid").collect().toSet) shouldBe empty
+    sets("test").collect().toSet.intersect(sets("valid").collect().toSet) shouldBe empty
   }
 
   lazy val genFeatures: Gen[WebSiteFeature] = for {
