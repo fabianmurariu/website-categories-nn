@@ -19,7 +19,7 @@ def test_expand_path_to_text_lines():
 
 
 def test_load_class_weights():
-    actual = train.class_weights('test_resources/class_weights.jl', ["bikes", "fashion", "health", "property"])
+    actual = train.load_class_weights('test_resources/class_weights.jl', ["bikes", "fashion", "health", "property"])
     assert actual == {0: 27.924082140634724, 1: 8.422297297297296, 2: 3.32227733767676, 3: 3.5400757336699273}
 
 

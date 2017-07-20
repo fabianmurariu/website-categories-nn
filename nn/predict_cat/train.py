@@ -59,7 +59,7 @@ def text_lines(path):
     return read_lines(lambda line: line.strip(), *glob(path))
 
 
-def class_weights(path, labels):
+def load_class_weights(path, labels):
     lines = list(json_lines(path))
     labels_idx = {label: idx for label, idx in zip(labels, range(len(labels)))}
     weights = lines[0]['weights']
@@ -139,9 +139,8 @@ def build_model(embeddings_path, labels, max_nb_words, embedding_dim=50, max_seq
     return model
 
 
-def fit_model(model, valid_ds, train_ds, class_weights):
+def fit_model(model, valid_ds, train_ds, class_weights, epochs):
     steps_per_epoch = 3000
-    epochs = 10
     model.fit_generator(train_ds, validation_data=valid_ds, steps_per_epoch=steps_per_epoch,
                         validation_steps=steps_per_epoch / 10,
                         epochs=epochs, class_weight=class_weights)
@@ -152,17 +151,32 @@ def save_model(model, path):
 
 
 if __name__ == "__main__":
-    from os.path import expanduser
+    import sys, getopt
+    from os import path
 
-    home = expanduser("~")
-    BASE_DIR = home + '/ml-work'
+    print("ARGS", sys.argv)
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "f", ["features_path=", "epochs=", "model_out="])
+    except getopt.GetoptError as err:
+        print(str(err))
+        sys.exit(2)
+
+    opts_dict = {k: v for k, v in opts}
+
+    pre_nn_output = path.abspath(path.expanduser(opts_dict['--features_path']))
+    model_path = path.abspath(path.expanduser(opts_dict['--model_out']))
+    epochs = int(opts_dict.get('--epochs', 50))
+
+    print("Loading features from %s" % pre_nn_output)
+    print("Training for %s epochs" % epochs)
+    print("Saving the model at %s" % model_path)
+
     MAX_SEQUENCE_LENGTH = 1000
     MAX_NB_WORDS = 20000
     EMBEDDING_DIM = 50
     batch_size = 16
     # first, build index mapping words in the embeddings set
     # to their embedding vector
-    pre_nn_output = BASE_DIR + '/dmoz/website-features-2'
     embeddings_path = pre_nn_output + '/embeddings'
     labels_path = pre_nn_output + '/labels'
     features_path = pre_nn_output + '/features'
@@ -170,14 +184,13 @@ if __name__ == "__main__":
     # do stuff
     labels = list(text_lines(labels_path + '/*'))
     print("labels count %s" % len(labels))
-    class_weights = class_weights(class_weights_path + '/*', labels)
+    class_weights = load_class_weights(class_weights_path + '/*', labels)
     print("loading data")
     train_ds, valid_ds, test_ds = get_data(features_path, batch_size, MAX_SEQUENCE_LENGTH)
     print("building model")
-    model_path = BASE_DIR + '/dmoz/model-keras'
     model = load_model(model_path) if path.exists(model_path) else build_model(embeddings_path, labels, MAX_NB_WORDS,
                                                                                EMBEDDING_DIM, MAX_SEQUENCE_LENGTH)
     print("training...")
-    fit_model(model, valid_ds, train_ds, class_weights)
+    fit_model(model, valid_ds, train_ds, class_weights, epochs)
     print("done training saving model")
     save_model(model, model_path)

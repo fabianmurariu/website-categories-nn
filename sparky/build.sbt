@@ -1,4 +1,4 @@
-lazy val sparkVersion = "2.1.0"
+lazy val sparkVersion = "2.1.1"
 
 lazy val commonSettings = Seq(
   organization := "com.bytes32",
