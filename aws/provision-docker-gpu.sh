@@ -53,7 +53,7 @@ conda upgrade -y --all
 # install and configure theano
 pip install theano
 echo "[global]
-device = cuda0
+device = gpu
 floatX = float32
 [cuda]
 root = /usr/local/cuda" > ~/.theanorc
@@ -65,7 +65,7 @@ echo '{
     "image_dim_ordering": "th",
     "epsilon": 1e-07,
     "floatx": "float32",
-    "backend": "theano"
+    "backend": "tensorflow"
 }' > ~/.keras/keras.json
 
 # install tensorflow
@@ -101,3 +101,5 @@ c.NotebookApp.open_browser = False" >> $HOME/.jupyter/jupyter_notebook_config.py
 sudo apt-get -y install cmake build-essential libgtk-3-dev libboost-all-dev
 pip install opencv-python
 pip install dlib
+# awscli
+pip install awscli

@@ -6,12 +6,15 @@ from functools import partial
 from glob import glob
 from keras.preprocessing import image
 import numpy as np
+import os
 from joblib import Parallel, delayed, Memory
 from keras.layers import Conv1D, MaxPooling1D, Embedding
-# from keras.layers import Dense, Input, Flatten, Dropout, BatchNormalization
+from keras.layers import Dense, Input, Flatten, Dropout, BatchNormalization
 from keras.layers.core import Lambda
-# from keras.layers.recurrent import LSTM
+from keras.layers.recurrent import LSTM
 from keras.models import Model
+from keras.preprocessing import sequence
+
 # from keras.models import load_model
 # from keras.optimizers import Adam
 # from keras.preprocessing import sequence
@@ -21,7 +24,6 @@ mem = Memory(cachedir='/tmp/relational-images')
 
 from nn.predict_cat import train
 import json
-# load CLEVER images and questions
 from os.path import expanduser
 
 home = expanduser("~")
@@ -31,25 +33,13 @@ valB_questions_path = CLEVER_PATH + "/questions/CLEVR_valB_questions.json.jl.gz"
 trainA_questions_path = CLEVER_PATH + "/questions/CLEVR_trainA_questions.json.jl.gz"
 testB_questions_path = CLEVER_PATH + "/questions/CLEVR_testB_questions.json.jl.gz"
 testA_questions_path = CLEVER_PATH + "/questions/CLEVR_testA_questions.json.jl.gz"
-
+GLOVE_PATH = '/Users/murariuf/ml-work/glove.6B'
 valA_images_path = CLEVER_PATH + "/images/valA"
 valB_images_path = CLEVER_PATH + "/images/valB"
 trainA_images_path = CLEVER_PATH + "/images/trainA"
 testB_images_path = CLEVER_PATH + "/images/testB"
 testA_images_path = CLEVER_PATH + "/images/testA"
 
-
-# {"question_index": 0, "question_family_index": 46, "image_index": 0,
-#  "question": "Are there any gray things made of the same material as the big cyan cylinder?", "answer": "no",
-#  "image_filename": "CLEVR_trainA_000000.png", "split": "trainA",
-#  "program": [{"value_inputs": [], "inputs": [], "function": "scene"},
-#              {"value_inputs": ["large"], "inputs": [0], "function": "filter_size"},
-#              {"value_inputs": ["cyan"], "inputs": [1], "function": "filter_color"},
-#              {"value_inputs": ["cylinder"], "inputs": [2], "function": "filter_shape"},
-#              {"value_inputs": [], "inputs": [3], "function": "unique"},
-#              {"value_inputs": [], "inputs": [4], "function": "same_material"},
-#              {"value_inputs": ["gray"], "inputs": [5], "function": "filter_color"},
-#              {"value_inputs": [], "inputs": [6], "function": "exist"}]}
 
 def read_json_drop_keys(drop_keys, line):
     if drop_keys is None:
@@ -61,8 +51,8 @@ def read_json_drop_keys(drop_keys, line):
     return d
 
 
-def load_clever_questions(path_to_file):
-    questions = train.read_lines_paths(partial(read_json_drop_keys, ["program"]), [path_to_file], True)
+def load_clever_questions(path_to_file, infinite=True):
+    questions = train.read_lines_paths(partial(read_json_drop_keys, ["program"]), [path_to_file], infinite)
     return questions
 
 
@@ -72,6 +62,27 @@ def load_image(img_path):
     return np.expand_dims(img_array, axis=0)
 
 
+load_image_mem = mem.cache(load_image)
+
+
+# TODO: figure out if we still need this
+# def read_embeding_matrix(glove_dir=GLOVE_PATH, size=50):
+#     import gzip
+#     embeddings_index = {}
+#     keys = []
+#     f = gzip.open(os.path.join(glove_dir, 'glove.6B.%sd.txt.gz' % size))
+#     for line in f:
+#         values = line.split()
+#         word = values[0]
+#         coefs = np.asarray(values[1:], dtype='float32')
+#         embeddings_index[word] = coefs
+#         keys.append(word)
+#     f.close()
+#     word_index = {keys[i]: i for i in len(keys)}
+#     return embeddings_index, word_index
+
+
+# TODO: figure out if we still need this
 # def load_clever_images(path_to_images):
 #     image_paths = glob(path_to_images)
 #     imgs = Parallel(n_jobs=8)(delayed(load_image)(i) for i in image_paths)
@@ -79,15 +90,75 @@ def load_image(img_path):
 #     return img_dict
 
 
+# train_json = load_clever_questions(trainA_questions_path)
+# validA_json = load_clever_questions(valA_questions_path)
+# validB_json = load_clever_questions(valB_questions_path)
 
-train_json = load_clever_questions(trainA_questions_path)
-validA_json = load_clever_questions(valA_questions_path)
-validB_json = load_clever_questions(valB_questions_path)
-# takes too much time, need alternative
-# train_images = load_clever_images(trainA_images_path)
-# validA_images = load_clever_images(valA_images_path)
-# validB_images = load_clever_images(valB_images_path)
-num_words = 45
-embedding_dim = 50
-embedding_layer = Embedding(num_words,
-                            embedding_dim)
+
+def ohc_word_index_answers(json_path):
+    from sklearn.preprocessing import OneHotEncoder
+    enc = OneHotEncoder(sparse=False)
+    answers = list(set((js['answer'] for js in load_clever_questions(json_path, False))))
+    print("answers", answers)
+    word_index = {answers[k]: k for k in range(len(answers))}
+    enc.fit([[i] for i in range(len(answers))])
+    return word_index, enc
+
+
+def word_index_questions(json_path):
+    import re
+    word_index = {}
+    i = 1
+    regx = re.compile("[;? ']+")
+    for js in load_clever_questions(json_path, False):
+        q = js['question']
+        tokens = [s.lower() for s in regx.split(q)]
+        for word in tokens:
+            if word and word not in word_index:
+                word_index[word] = i
+                i = i + 1
+    return word_index
+
+
+def prepare_train_x_y_questions(json_path, enc_ans, word_index_qs={}, word_index_ans={}, sentence_length=45,
+                                batch_size=16, infinite=False):
+    import re
+    data1 = train.grouper(load_clever_questions(json_path, infinite), batch_size)
+    regx1 = re.compile("[;? ']+")
+
+    def encode_question(js_qs):
+        tokens = regx1.split(js_qs)
+        return [word_index_qs.get(word, 0) for word in tokens]
+
+    def process_chunk(chunk):
+        y1 = enc_ans.transform([[word_index_ans.get(js['answer'])] for js in chunk])
+        wtf = [encode_question(js['question']) for js in chunk]
+        x1 = sequence.pad_sequences(wtf, maxlen=sentence_length)
+        return x1, y1
+
+    return (process_chunk(chunk) for chunk in data1)
+
+
+def load_x_y_questions(json_path, sentence_length=45, batch_size=16, infinite=False):
+    word_index_ans, enc = ohc_word_index_answers(json_path)
+    word_index_qs = word_index_questions(json_path)
+    return prepare_train_x_y_questions(json_path, enc, word_index_qs, word_index_ans, sentence_length, batch_size,
+                                       infinite)
+
+
+sentence_length = 45
+output_length = 28
+data = load_x_y_questions(valA_questions_path, infinite=True)
+
+q_input = Input(shape=(sentence_length,), name='questions_input')
+x = Embedding(85, 128)(q_input)
+x = LSTM(128)(x)
+q_output = Dense(28, activation='softmax')(x)
+
+model = Model(inputs=q_input, outputs=q_output)
+
+model.compile(optimizer='rmsprop',
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+model.fit_generator(data, 10, 10)
