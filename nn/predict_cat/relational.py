@@ -1,24 +1,17 @@
 # this is based on https://arxiv.org/pdf/1706.01427.pdf
 from __future__ import print_function
 from functools import partial
-# import itertools
-# import json
-from glob import glob
+import itertools
 from keras.preprocessing import image
 import numpy as np
-import os
 from joblib import Parallel, delayed, Memory
 from keras.layers import Conv1D, Conv2D, MaxPooling1D, MaxPool2D, Embedding
-from keras.layers import Dense, Input, Flatten, Dropout, BatchNormalization
+from keras.layers import Dense, Input, Flatten, Dropout, BatchNormalization, Merge
 from keras.layers.core import Lambda
 from keras.layers.recurrent import LSTM
 from keras.models import Model
 from keras.preprocessing import sequence
-
-# from keras.models import load_model
-# from keras.optimizers import Adam
-# from keras.preprocessing import sequence
-# from os import path
+from keras.layers import concatenate
 
 mem = Memory(cachedir='/tmp/relational-images', verbose=0)
 
@@ -65,36 +58,6 @@ def load_image(img_path):
 load_image_mem = mem.cache(load_image)
 
 
-# TODO: figure out if we still need this
-# def read_embeding_matrix(glove_dir=GLOVE_PATH, size=50):
-#     import gzip
-#     embeddings_index = {}
-#     keys = []
-#     f = gzip.open(os.path.join(glove_dir, 'glove.6B.%sd.txt.gz' % size))
-#     for line in f:
-#         values = line.split()
-#         word = values[0]
-#         coefs = np.asarray(values[1:], dtype='float32')
-#         embeddings_index[word] = coefs
-#         keys.append(word)
-#     f.close()
-#     word_index = {keys[i]: i for i in len(keys)}
-#     return embeddings_index, word_index
-
-
-# TODO: figure out if we still need this
-# def load_clever_images(path_to_images):
-#     image_paths = glob(path_to_images)
-#     imgs = Parallel(n_jobs=8)(delayed(load_image)(i) for i in image_paths)
-#     img_dict = {i: imgs[i] for i in range(0, len(imgs))}
-#     return img_dict
-
-
-# train_json = load_clever_questions(trainA_questions_path)
-# validA_json = load_clever_questions(valA_questions_path)
-# validB_json = load_clever_questions(valB_questions_path)
-
-
 def ohc_word_index_answers(json_path):
     from sklearn.preprocessing import OneHotEncoder
     enc = OneHotEncoder(sparse=False)
@@ -124,28 +87,33 @@ def prepare_train_x_y_questions(json_path, enc_ans, word_index_qs={}, word_index
                                 batch_size=16, infinite=False):
     import re
     data1 = train.grouper(load_clever_questions(json_path, infinite), batch_size)
+    data2 = train.grouper(load_clever_questions(json_path, infinite), batch_size)
     regx1 = re.compile("[;? ']+")
 
     def encode_question(js_qs):
         tokens = regx1.split(js_qs)
         return [word_index_qs.get(word, 0) for word in tokens]
 
-    def process_chunk(chunk):
-        y1 = enc_ans.transform([[word_index_ans.get(js['answer'])] for js in chunk])
-        wtf = [encode_question(js['question']) for js in chunk]
-        x1 = sequence.pad_sequences(wtf, maxlen=sentence_length)
-        return x1, y1
+    def process_chunk_x(chunk):
+        encoded_questions = [encode_question(js['question']) for js in chunk]
+        x1 = sequence.pad_sequences(encoded_questions, maxlen=sentence_length)
+        return x1
 
-    return (process_chunk(chunk) for chunk in data1)
+    def process_chunk_y(chunk):
+        return enc_ans.transform([[word_index_ans.get(js['answer'])] for js in chunk])
+
+    x_input = (process_chunk_x(chunk) for chunk in data1)
+    y_output = (process_chunk_y(chunk) for chunk in data2)
+    return x_input, y_output
 
 
 def load_x_y_questions(json_path, sentence_length=45, batch_size=16, infinite=False):
     word_index_ans, enc = ohc_word_index_answers(json_path)
     word_index_qs = word_index_questions(json_path)
-    questions_gen = prepare_train_x_y_questions(json_path, enc, word_index_qs, word_index_ans, sentence_length,
-                                                batch_size,
-                                                infinite)
-    return word_index_ans, word_index_qs, enc, questions_gen
+    x_input, y_output = prepare_train_x_y_questions(json_path, enc, word_index_qs, word_index_ans, sentence_length,
+                                                    batch_size,
+                                                    infinite)
+    return word_index_ans, word_index_qs, enc, x_input, y_output
 
 
 def prepare_train_x_y_images(json_path, imgs_root, load_img_fn, enc_ans, word_index_ans={}, batch_size=16,
@@ -154,29 +122,29 @@ def prepare_train_x_y_images(json_path, imgs_root, load_img_fn, enc_ans, word_in
     data1 = train.grouper(load_clever_questions(json_path, infinite), batch_size)
 
     def process_chunk(chunk):
-        y1 = enc_ans.transform([[word_index_ans.get(js['answer'])] for js in chunk])
         x1 = np.array([load_img_fn(join(imgs_root, js['image_filename'])) for js in chunk])
-        return x1, y1
+        return x1
 
     return (process_chunk(chunk) for chunk in data1)
 
 
 def load_x_y_images(json_path, imgs_root, word_index_ans, enc, load_img_fn=load_image_mem, batch_size=16,
                     infinite=False):
-    print(type(enc))
     images_gen = prepare_train_x_y_images(json_path, imgs_root, load_img_fn, enc, word_index_ans, batch_size,
                                           infinite)
     return images_gen
 
 
 def img_model(output_length):
-    img_input = Input(shape=(330, 220, 3))
+    img_input = Input(shape=(330, 220, 3), name='img_input')
     x = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(img_input)
     x = BatchNormalization()(x)
     x = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(x)
     x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
-    x = MaxPool2D(pool_size=(2, 2))(x)
+    x = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(x)
+    x = BatchNormalization()(x)
+    x = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(x)
+    x = BatchNormalization()(x)
     x = Flatten()(x)
     output = Dense(output_length, activation='softmax')(x)
     model = Model(inputs=img_input, outputs=output)
@@ -186,25 +154,68 @@ def img_model(output_length):
     return model
 
 
-sentence_length = 45
-output_length = 28
+def question_model(sentence_length=45):
+    q_input = Input(shape=(sentence_length,), name='questions_input')
+    x = Embedding(85, 128)(q_input)
+    x = LSTM(128)(x)
+    q_output = Dense(28, activation='softmax')(x)
 
-# model = img_model(output_length)
+    model = Model(inputs=q_input, outputs=q_output)
+
+    model.compile(optimizer='rmsprop',
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy'])
+    return model
+
+
+def naive_combine_model(sentence_length=45, output_length=28):
+    # image first
+    img_input = Input(shape=(330, 220, 3), name='img_input')
+    x1 = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(img_input)
+    x1 = BatchNormalization()(x1)
+    x1 = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(x1)
+    x1 = BatchNormalization()(x1)
+    x1 = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(x1)
+    x1 = BatchNormalization()(x1)
+    x1 = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(x1)
+    x1 = BatchNormalization()(x1)
+    x1 = Flatten()(x1)
+
+    # then questions
+    q_input = Input(shape=(sentence_length,), name='questions_input')
+    x2 = Embedding(85, 32)(q_input)
+    x2 = LSTM(32)(x2)
+
+    x = concatenate([x1, x2], axis=-1)
+    x = Dense(128, activation='softmax')(x)
+    output = Dense(output_length, activation='softmax', name='main_output')(x)
+    model = Model(inputs=[img_input, q_input], output=output)
+    model.compile(optimizer='adam',
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy'])
+    return model
+
+
+def combine_generators(questions_gen, imgs_gen, answers_gen):
+    return (({'questions_input': qs, 'img_input': img}, {'main_output': out1}) for qs, img, out1 in
+            itertools.izip(questions_gen, imgs_gen, answers_gen))
+
+
+def generate_data(json_path, image_root, batch_size=16, infinite=False):
+    word_index_ans, word_index_qs, enc, questions_gen, answers_gen = load_x_y_questions(json_path,
+                                                                                        infinite=infinite,
+                                                                                        batch_size=batch_size)
+    imgs_gen = load_x_y_images(json_path, image_root, word_index_ans, enc, infinite=infinite, batch_size=batch_size)
+    return combine_generators(questions_gen, imgs_gen, answers_gen)
+
+# sentence_length = 45
+# output_length = 28
+#
+# model = naive_combine_model(sentence_length, output_length)
 # model.summary()
 #
-# word_index_ans, word_index_qs, enc, questions_gen = load_x_y_questions(valA_questions_path, infinite=True)
-# imgs_gen = load_x_y_images(valA_questions_path, valA_images_path, word_index_ans, enc, infinite=True)
-# model.fit_generator(imgs_gen, 500, 12)
+# gen = generate_data(valA_questions_path, valA_images_path, infinite=True)
 #
-# q_input = Input(shape=(sentence_length,), name='questions_input')
-# x = Embedding(85, 128)(q_input)
-# x = LSTM(128)(x)
-# q_output = Dense(28, activation='softmax')(x)
-#
-# model = Model(inputs=q_input, outputs=q_output)
-#
-# model.compile(optimizer='rmsprop',
-#               loss='categorical_crossentropy',
-#               metrics=['accuracy'])
-#
-# model.fit_generator(questions_gen, 10, 10)
+# model.fit_generator(gen,
+#                     epochs=12,
+#                     steps_per_epoch=500)

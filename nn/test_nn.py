@@ -65,22 +65,43 @@ def test_generate_word_index_questions():
 
 
 def test_load_x_y_questions():
-    _, _, _, actual = relational.load_x_y_questions(test_jl_path, 45, 5)
+    _, _, _, actual, actual_y = relational.load_x_y_questions(test_jl_path, 45, 5)
     actual = list(actual)
+    actual_y = list(actual_y)
     actual_size = len(actual)
     assert actual_size == 4
-    x_shape = actual[0][0].shape
-    y_shape = actual[0][1].shape
+    x_shape = actual[0].shape
+    y_shape = actual_y[0].shape
     assert x_shape == (5, 45)
     assert y_shape == (5, 9)
 
 
 def test_load_images():
-    word_index_ans, word_index_qs, enc, questions_gen = relational.load_x_y_questions(test_jl_path, 45, 5)
+    word_index_ans, word_index_qs, enc, questions_gen, y = relational.load_x_y_questions(test_jl_path, 45, 5)
     actual = list(relational.load_x_y_images(test_jl_path, test_images_path, word_index_ans, enc, batch_size=5))
     actual_size = len(actual)
     assert actual_size == 4
-    x_shape = actual[0][0].shape
-    y_shape = actual[0][1].shape
+    x_shape = actual[0].shape
     assert x_shape == (5, 330, 220, 3)
-    assert y_shape == (5, 9)
+
+
+def test_generate_data():
+    from os.path import join
+    # word_index_ans, word_index_qs, enc, questions_gen, answers_gen = relational.load_x_y_questions(test_jl_path,
+    #                                                                                                infinite=False,
+    #                                                                                                batch_size=5)
+    sample_img1 = relational.load_image(join(test_images_path, 'CLEVR_trainA_000000.png'))
+    expected_img_input1 = np.array([sample_img1, sample_img1, sample_img1, sample_img1, sample_img1])
+
+    sample_img2 = relational.load_image(join(test_images_path, 'CLEVR_trainA_069999.png'))
+    expected_img_input2 = np.array([sample_img2, sample_img2, sample_img2, sample_img2, sample_img2])
+
+    actual = list(relational.generate_data(test_jl_path, test_images_path, 5))
+    actual_size = len(actual)
+    assert actual_size == 4
+
+    input, output = actual[0]
+    np.array_equal(input['img_input'], expected_img_input1)
+
+    input1, output1 = actual[-1]
+    np.array_equal(input1['img_input'], expected_img_input2)
