@@ -35,24 +35,28 @@ def test_create_batch():
     assert np.array_equal(y_actual, np.array([2, 4]))
 
 
+test_jl_path = 'test_resources/clever/test.jl'
+test_images_path = 'test_resources/clever/images'
+
+
 def test_load_clever_questions():
-    json_lines = [js for js in relational.load_clever_questions('test_resources/clever/test.jl', False)]
+    json_lines = [js for js in relational.load_clever_questions(test_jl_path, False)]
     assert len(json_lines) == 20
 
 
 def test_generate_one_hot_encoding_and_word_index_for_answers():
     expected_word_index = {u'blue': 0, u'large': 5, u'cylinder': 2, u'no': 3, u'metal': 4, u'1': 1, u'0': 6, u'2': 7,
                            u'yes': 8}
-    word_index, enc = relational.ohc_word_index_answers('test_resources/clever/test.jl')
+    word_index, enc = relational.ohc_word_index_answers(test_jl_path)
     assert word_index == expected_word_index
-    actual = enc.transform([[1], [3], [5]]).toarray()
+    actual = enc.transform([[1], [3], [5]])
     assert np.array_equal(actual, np.array([[0., 1., 0., 0., 0., 0., 0., 0., 0.],
                                             [0., 0., 0., 1., 0., 0., 0., 0., 0.],
                                             [0., 0., 0., 0., 0., 1., 0., 0., 0.]]))
 
 
 def test_generate_word_index_questions():
-    actual = relational.word_index_questions('test_resources/clever/test.jl')
+    actual = relational.word_index_questions(test_jl_path)
     assert actual['right'] == 54
     assert actual['cube'] == 56
     assert actual['are'] == 1
@@ -61,10 +65,22 @@ def test_generate_word_index_questions():
 
 
 def test_load_x_y_questions():
-    actual = list(relational.load_x_y_questions('test_resources/clever/test.jl', 45, 5))
+    _, _, _, actual = relational.load_x_y_questions(test_jl_path, 45, 5)
+    actual = list(actual)
     actual_size = len(actual)
     assert actual_size == 4
     x_shape = actual[0][0].shape
     y_shape = actual[0][1].shape
     assert x_shape == (5, 45)
+    assert y_shape == (5, 9)
+
+
+def test_load_images():
+    word_index_ans, word_index_qs, enc, questions_gen = relational.load_x_y_questions(test_jl_path, 45, 5)
+    actual = list(relational.load_x_y_images(test_jl_path, test_images_path, word_index_ans, enc, batch_size=5))
+    actual_size = len(actual)
+    assert actual_size == 4
+    x_shape = actual[0][0].shape
+    y_shape = actual[0][1].shape
+    assert x_shape == (5, 330, 220, 3)
     assert y_shape == (5, 9)

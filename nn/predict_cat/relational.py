@@ -8,7 +8,7 @@ from keras.preprocessing import image
 import numpy as np
 import os
 from joblib import Parallel, delayed, Memory
-from keras.layers import Conv1D, MaxPooling1D, Embedding
+from keras.layers import Conv1D, Conv2D, MaxPooling1D, MaxPool2D, Embedding
 from keras.layers import Dense, Input, Flatten, Dropout, BatchNormalization
 from keras.layers.core import Lambda
 from keras.layers.recurrent import LSTM
@@ -20,7 +20,7 @@ from keras.preprocessing import sequence
 # from keras.preprocessing import sequence
 # from os import path
 
-mem = Memory(cachedir='/tmp/relational-images')
+mem = Memory(cachedir='/tmp/relational-images', verbose=0)
 
 from nn.predict_cat import train
 import json
@@ -59,7 +59,7 @@ def load_clever_questions(path_to_file, infinite=True):
 def load_image(img_path):
     img = image.load_img(img_path, target_size=(330, 220))
     img_array = image.img_to_array(img)
-    return np.expand_dims(img_array, axis=0)
+    return img_array
 
 
 load_image_mem = mem.cache(load_image)
@@ -142,23 +142,69 @@ def prepare_train_x_y_questions(json_path, enc_ans, word_index_qs={}, word_index
 def load_x_y_questions(json_path, sentence_length=45, batch_size=16, infinite=False):
     word_index_ans, enc = ohc_word_index_answers(json_path)
     word_index_qs = word_index_questions(json_path)
-    return prepare_train_x_y_questions(json_path, enc, word_index_qs, word_index_ans, sentence_length, batch_size,
-                                       infinite)
+    questions_gen = prepare_train_x_y_questions(json_path, enc, word_index_qs, word_index_ans, sentence_length,
+                                                batch_size,
+                                                infinite)
+    return word_index_ans, word_index_qs, enc, questions_gen
+
+
+def prepare_train_x_y_images(json_path, imgs_root, load_img_fn, enc_ans, word_index_ans={}, batch_size=16,
+                             infinite=False):
+    from os.path import join
+    data1 = train.grouper(load_clever_questions(json_path, infinite), batch_size)
+
+    def process_chunk(chunk):
+        y1 = enc_ans.transform([[word_index_ans.get(js['answer'])] for js in chunk])
+        x1 = np.array([load_img_fn(join(imgs_root, js['image_filename'])) for js in chunk])
+        return x1, y1
+
+    return (process_chunk(chunk) for chunk in data1)
+
+
+def load_x_y_images(json_path, imgs_root, word_index_ans, enc, load_img_fn=load_image_mem, batch_size=16,
+                    infinite=False):
+    print(type(enc))
+    images_gen = prepare_train_x_y_images(json_path, imgs_root, load_img_fn, enc, word_index_ans, batch_size,
+                                          infinite)
+    return images_gen
+
+
+def img_model(output_length):
+    img_input = Input(shape=(330, 220, 3))
+    x = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(img_input)
+    x = BatchNormalization()(x)
+    x = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.2)(x)
+    x = MaxPool2D(pool_size=(2, 2))(x)
+    x = Flatten()(x)
+    output = Dense(output_length, activation='softmax')(x)
+    model = Model(inputs=img_input, outputs=output)
+    model.compile(optimizer='adam',
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy'])
+    return model
 
 
 sentence_length = 45
 output_length = 28
-data = load_x_y_questions(valA_questions_path, infinite=True)
 
-q_input = Input(shape=(sentence_length,), name='questions_input')
-x = Embedding(85, 128)(q_input)
-x = LSTM(128)(x)
-q_output = Dense(28, activation='softmax')(x)
-
-model = Model(inputs=q_input, outputs=q_output)
-
-model.compile(optimizer='rmsprop',
-              loss='categorical_crossentropy',
-              metrics=['accuracy'])
-
-model.fit_generator(data, 10, 10)
+# model = img_model(output_length)
+# model.summary()
+#
+# word_index_ans, word_index_qs, enc, questions_gen = load_x_y_questions(valA_questions_path, infinite=True)
+# imgs_gen = load_x_y_images(valA_questions_path, valA_images_path, word_index_ans, enc, infinite=True)
+# model.fit_generator(imgs_gen, 500, 12)
+#
+# q_input = Input(shape=(sentence_length,), name='questions_input')
+# x = Embedding(85, 128)(q_input)
+# x = LSTM(128)(x)
+# q_output = Dense(28, activation='softmax')(x)
+#
+# model = Model(inputs=q_input, outputs=q_output)
+#
+# model.compile(optimizer='rmsprop',
+#               loss='categorical_crossentropy',
+#               metrics=['accuracy'])
+#
+# model.fit_generator(questions_gen, 10, 10)
