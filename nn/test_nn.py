@@ -87,9 +87,6 @@ def test_load_images():
 
 def test_generate_data():
     from os.path import join
-    # word_index_ans, word_index_qs, enc, questions_gen, answers_gen = relational.load_x_y_questions(test_jl_path,
-    #                                                                                                infinite=False,
-    #                                                                                                batch_size=5)
     sample_img1 = relational.load_image(join(test_images_path, 'CLEVR_trainA_000000.png'))
     expected_img_input1 = np.array([sample_img1, sample_img1, sample_img1, sample_img1, sample_img1])
 

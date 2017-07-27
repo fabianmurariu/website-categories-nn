@@ -6,12 +6,15 @@ from keras.preprocessing import image
 import numpy as np
 from joblib import Parallel, delayed, Memory
 from keras.layers import Conv1D, Conv2D, MaxPooling1D, MaxPool2D, Embedding
-from keras.layers import Dense, Input, Flatten, Dropout, BatchNormalization, Merge
+from keras.layers import Dense, Input, Flatten, Dropout, BatchNormalization, Merge, Masking
+from keras.optimizers import Adam, RMSprop
 from keras.layers.core import Lambda
 from keras.layers.recurrent import LSTM
 from keras.models import Model
+# import keras.backend as K
+import keras
 from keras.preprocessing import sequence
-from keras.layers import concatenate
+from keras.layers import concatenate, add
 
 mem = Memory(cachedir='/tmp/relational-images', verbose=0)
 
@@ -33,6 +36,9 @@ trainA_images_path = CLEVER_PATH + "/images/trainA"
 testB_images_path = CLEVER_PATH + "/images/testB"
 testA_images_path = CLEVER_PATH + "/images/testA"
 
+image_size = (192, 128)
+image_size_ch = (192, 128, 3)
+
 
 def read_json_drop_keys(drop_keys, line):
     if drop_keys is None:
@@ -50,7 +56,7 @@ def load_clever_questions(path_to_file, infinite=True):
 
 
 def load_image(img_path):
-    img = image.load_img(img_path, target_size=(330, 220))
+    img = image.load_img(img_path, target_size=image_size)
     img_array = image.img_to_array(img)
     return img_array
 
@@ -135,8 +141,8 @@ def load_x_y_images(json_path, imgs_root, word_index_ans, enc, load_img_fn=load_
     return images_gen
 
 
-def img_model(output_length):
-    img_input = Input(shape=(330, 220, 3), name='img_input')
+def img_model(output_length, image_size=image_size_ch):
+    img_input = Input(shape=image_size, name='img_input')
     x = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(img_input)
     x = BatchNormalization()(x)
     x = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(x)
@@ -168,9 +174,9 @@ def question_model(sentence_length=45):
     return model
 
 
-def naive_combine_model(sentence_length=45, output_length=28):
+def naive_combine_model(sentence_length=45, output_length=28, opt=Adam(), image_size=image_size_ch):
     # image first
-    img_input = Input(shape=(330, 220, 3), name='img_input')
+    img_input = Input(shape=image_size, name='img_input')
     x1 = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(img_input)
     x1 = BatchNormalization()(x1)
     x1 = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(x1)
@@ -190,7 +196,53 @@ def naive_combine_model(sentence_length=45, output_length=28):
     x = Dense(128, activation='softmax')(x)
     output = Dense(output_length, activation='softmax', name='main_output')(x)
     model = Model(inputs=[img_input, q_input], output=output)
-    model.compile(optimizer='adam',
+    model.compile(optimizer=opt,
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy'])
+    return model
+
+
+def relational_model(sentence_length=45, output_length=28, opt=Adam(), image_size=image_size_ch,
+                     relational_mlp_size=128):
+    def PairMLP(source_layer, obj_i, obj_j, qs_lstm_output):
+        k = Lambda(lambda t: t[:, obj_i, obj_j, :])(source_layer)
+        k = concatenate([k, qs_lstm_output], axis=-1)
+        k = Dense(relational_mlp_size, activation='relu')(k)
+        k = Dense(relational_mlp_size, activation='relu')(k)
+        k = Dense(relational_mlp_size, activation='relu')(k)
+        k = Dense(relational_mlp_size, activation='relu')(k)
+        return k
+
+    def Conv2DRelational(input_shape, img_conv_layer, qs_lstm_output):
+        _, x, y, z = input_shape
+        a = add([PairMLP(img_conv_layer, i, j, qs_lstm_output) for i in range(x) for j in range(y) if i != j])
+        a = Dense(relational_mlp_size, activation='relu')(a)
+        a = Dense(relational_mlp_size, activation='relu')(a)
+        a = Dropout(0.5)(a)
+        return a
+
+    # then questions
+    q_input = Input(shape=(sentence_length,), name='questions_input')
+    x2 = Embedding(85, 32)(q_input)
+    x2 = LSTM(32)(x2)
+
+    # images
+    img_input = Input(shape=image_size, name='img_input')
+    x1 = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(img_input)
+    x1 = BatchNormalization()(x1)
+    x1 = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(x1)
+    x1 = BatchNormalization()(x1)
+    x1 = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(x1)
+    x1 = BatchNormalization()(x1)
+    x1 = Conv2D(24, (3, 3), strides=(2, 2), activation='relu')(x1)
+    img_last_conv = BatchNormalization()
+    x1 = img_last_conv(x1)
+    # relational
+    x1 = Conv2DRelational(img_last_conv.output_shape, x1, x2)
+    # final output
+    output = Dense(output_length, activation='softmax', name='main_output')(x1)
+    model = Model(inputs=[img_input, q_input], output=output)
+    model.compile(optimizer=opt,
                   loss='categorical_crossentropy',
                   metrics=['accuracy'])
     return model
@@ -208,14 +260,17 @@ def generate_data(json_path, image_root, batch_size=16, infinite=False):
     imgs_gen = load_x_y_images(json_path, image_root, word_index_ans, enc, infinite=infinite, batch_size=batch_size)
     return combine_generators(questions_gen, imgs_gen, answers_gen)
 
-# sentence_length = 45
-# output_length = 28
-#
-# model = naive_combine_model(sentence_length, output_length)
-# model.summary()
-#
-# gen = generate_data(valA_questions_path, valA_images_path, infinite=True)
-#
-# model.fit_generator(gen,
-#                     epochs=12,
-#                     steps_per_epoch=500)
+
+sentence_length = 45
+output_length = 28
+
+opt = Adam()
+model = relational_model(sentence_length, output_length, opt)
+model.summary()
+
+gen = generate_data(valA_questions_path, valA_images_path, infinite=True)
+tbCallBack = keras.callbacks.TensorBoard(log_dir='./Graph', histogram_freq=0, write_graph=True, write_images=True)
+model.fit_generator(gen,
+                    callbacks=[tbCallBack],
+                    epochs=10,
+                    steps_per_epoch=2000)
