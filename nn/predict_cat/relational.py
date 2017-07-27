@@ -261,16 +261,16 @@ def generate_data(json_path, image_root, batch_size=16, infinite=False):
     return combine_generators(questions_gen, imgs_gen, answers_gen)
 
 
-sentence_length = 45
-output_length = 28
-
-opt = Adam()
-model = relational_model(sentence_length, output_length, opt)
-model.summary()
-
-gen = generate_data(valA_questions_path, valA_images_path, infinite=True)
-tbCallBack = keras.callbacks.TensorBoard(log_dir='./Graph', histogram_freq=0, write_graph=True, write_images=True)
-model.fit_generator(gen,
-                    callbacks=[tbCallBack],
-                    epochs=10,
-                    steps_per_epoch=2000)
+# sentence_length = 45
+# output_length = 28
+#
+# opt = Adam()
+# model = relational_model(sentence_length, output_length, opt)
+# model.summary()
+#
+# gen = generate_data(valA_questions_path, valA_images_path, infinite=True)
+# tbCallBack = keras.callbacks.TensorBoard(log_dir='./Graph', histogram_freq=0, write_graph=True, write_images=True)
+# model.fit_generator(gen,
+#                     callbacks=[tbCallBack],
+#                     epochs=10,
+#                     steps_per_epoch=2000)
