@@ -82,7 +82,7 @@ def test_load_images():
     actual_size = len(actual)
     assert actual_size == 4
     x_shape = actual[0].shape
-    assert x_shape == (5, 330, 220, 3)
+    assert x_shape == (5, 128, 128, 3)
 
 
 def test_generate_data():
@@ -102,3 +102,17 @@ def test_generate_data():
 
     input1, output1 = actual[-1]
     np.array_equal(input1['img_input'], expected_img_input2)
+
+
+def test_coord_find():
+    d = 8
+
+    def cvt_coord(i, d):
+        return [(i / d - 2) / 2., (i % d - 2) / 2.]
+
+    def cvt_coord2(i, d):
+        return [float(int(i / d)) / d, (i % d) / d]
+
+    wtf = [cvt_coord2(i, d) for i in range(d * d)]
+    print(len(wtf))
+    print(wtf)
