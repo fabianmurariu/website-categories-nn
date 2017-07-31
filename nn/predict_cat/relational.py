@@ -143,23 +143,30 @@ def load_x_y_images(json_path, imgs_root, word_index_ans, enc, load_img_fn=load_
 
 
 def relational_model(sentence_length=45, output_length=28, opt=Adam(), image_size=image_size_ch,
-                     relational_mlp_size=128):
+                     relational_mlp_size=256):
     def PairMLP(source_layer, obj_i, obj_j, qs_lstm_output):
         def concat_objects(t):
             return K.concatenate([t[:, obj_i, :], t[:, obj_j, :]], axis=1)
 
         k = Lambda(concat_objects)(source_layer)
         k = concatenate([k, qs_lstm_output], axis=-1)
-        k = Dense(relational_mlp_size, activation='relu')(k)
-        k = Dense(relational_mlp_size, activation='relu')(k)
-        k = Dense(relational_mlp_size, activation='relu')(k)
-        k = Dense(relational_mlp_size, activation='relu')(k)
         return k
+
+    def cvt_coord(i):
+        return [(i / 4 - 2) / 2., (i % 4 - 2) / 2.]
 
     def Conv2DRelational(input_shape, img_conv_layer, qs_lstm_output):
         _, d, z = input_shape
-        a = add([PairMLP(img_conv_layer, i, j, qs_lstm_output) for i in range(d) for j in range(d) if i != j])
+        a = concatenate([PairMLP(img_conv_layer, i, j, qs_lstm_output) for i in range(d) for j in range(d) if i != j],
+                        axis=-1)
+        a = Reshape(target_shape=(240, 176))(a)
+        a = Dense(relational_mlp_size, input_shape=(240, 176), activation='relu')(a)
         a = Dense(relational_mlp_size, activation='relu')(a)
+        a = Dense(relational_mlp_size, activation='relu')(a)
+        a = Dense(relational_mlp_size, activation='relu', name='last_g_function')(a)
+
+        a = Lambda(lambda x: K.sum(x, axis=1))(a)
+        a = Dense(relational_mlp_size, activation='relu', name='first_f_functon')(a)
         a = Dense(relational_mlp_size, activation='relu')(a)
         a = Dropout(0.5)(a)
         a = Dense(29, activation='relu')(a)
@@ -257,7 +264,7 @@ train_gen = generate_data2(trainA_questions_path, trainA_images_path, infinite=T
 tbCallBack = keras.callbacks.TensorBoard(log_dir='./Graph', histogram_freq=0, write_graph=True, write_images=True)
 model.fit_generator(generator=train_gen,
                     validation_data=val_gen,
-                    validation_steps=15,
+                    validation_steps=200,
                     callbacks=[tbCallBack],
                     epochs=10,
-                    steps_per_epoch=100)
+                    steps_per_epoch=1000)
