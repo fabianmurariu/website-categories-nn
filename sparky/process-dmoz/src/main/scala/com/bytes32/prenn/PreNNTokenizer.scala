@@ -1,10 +1,9 @@
 package com.bytes32.prenn
 
-import com.bytes32.prenn.PreNNProcessor.WebSiteCategoriesText
 import com.typesafe.scalalogging.LazyLogging
-import org.apache.spark.ml.feature.{CountVectorizer, CountVectorizerModel, StringIndexer, Tokenizer}
-import org.apache.spark.sql.functions.explode
+import org.apache.spark.ml.feature.{CountVectorizer, CountVectorizerModel, StringIndexer}
 import org.apache.spark.sql._
+import org.apache.spark.sql.functions.explode
 
 object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
 

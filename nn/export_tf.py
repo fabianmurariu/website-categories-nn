@@ -4,6 +4,7 @@ import tensorflow as tf
 from os.path import expanduser
 from keras.preprocessing.sequence import pad_sequences
 
+a = tf.placeholder()
 # this is key otherwise the model will not run once in the JVM
 K.set_learning_phase(0)
 # init tensorflow

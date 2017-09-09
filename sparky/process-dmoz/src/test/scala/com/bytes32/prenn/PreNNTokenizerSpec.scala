@@ -1,6 +1,5 @@
 package com.bytes32.prenn
 
-import com.bytes32.prenn.PreNNProcessor.WebSiteCategoriesText
 import org.apache.spark.sql.{Row, SparkSession}
 import org.scalacheck.Gen
 import org.scalatest.{FlatSpec, Matchers}

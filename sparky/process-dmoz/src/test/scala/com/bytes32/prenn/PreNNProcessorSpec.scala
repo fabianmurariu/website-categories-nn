@@ -22,19 +22,6 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
     actual should contain theSameElementsAs List(WebSiteCategoriesText("http://www.blerg.com", "www.blerg.com", Seq("some", "other"), "hello some text here"))
   }
 
-  it should "filter out non english domains" in {
-    import spark.implicits._
-    val samples = Seq(
-      WebSiteCategoriesText("http://www.blerg.com", "www.blerg.com", Seq("some", "other"), "hello some text here"),
-      WebSiteCategoriesText("http://www.blerg.co.uk", "www.blerg.com", Seq("some", "other"), "hello some text here"),
-      WebSiteCategoriesText("http://www.blerg.fr", "www.blerg.fr", Seq("some", "other"), "les francais")).toDS()
-
-    val actual = filterOutNonEnglishDomains(samples).collect()
-    actual should contain theSameElementsAs List(
-      WebSiteCategoriesText("http://www.blerg.co.uk", "www.blerg.com", Seq("some", "other"), "hello some text here"),
-      WebSiteCategoriesText("http://www.blerg.com", "www.blerg.com", Seq("some", "other"), "hello some text here"))
-  }
-
   it should "load subcategories.jl as Seq[FilterCategory]" in {
     val cats = getClass.getResource("/subcategories.jl")
     val categories = loadCategories(cats.getPath)

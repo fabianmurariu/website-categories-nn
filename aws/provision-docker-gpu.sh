@@ -91,7 +91,7 @@ echo "import tensorflow as tf" | python
 echo "import tensorflow;tensorflow.train.Server.create_local_server()" | python
 
 # Install scikit-learn
-conda install scikit-learn
+/home/ubuntu/anaconda2/bin/conda install -y scikit-learn
 # Configure Jupyter
 jupyter notebook --generate-config
 echo "c.NotebookApp.ip = '*'
@@ -103,3 +103,5 @@ pip install opencv-python
 pip install dlib
 # awscli
 pip install awscli
+# pytorch
+/home/ubuntu/anaconda2/bin/conda install -y pytorch torchvision cuda80 -c soumith
