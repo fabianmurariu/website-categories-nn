@@ -6,7 +6,7 @@ import org.apache.spark.sql.{Dataset, SparkSession}
 
 object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with ProcessorConfig with TextCleanup {
 
-  def truncateOrigCategories(cats: Dataset[WebSiteCategoriesText])(implicit spark: SparkSession): Dataset[WebSiteCategoriesTextV2] = {
+  def truncateOrigCategoriesToTop3(cats: Dataset[WebSiteCategoriesText])(implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
     import spark.implicits._
     cats.flatMap {
       case WebSiteCategoriesText(uri, origUri, categories, text, _) =>
@@ -14,19 +14,36 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with Proc
           cat =>
             val allCats = cat.stripPrefix("Top/").split("/").toList
             allCats match {
-              case one :: two :: three :: tail_* => List(DMOZCats(one, Some(two), Some(three)))
-              case one :: two :: tail_* => List(DMOZCats(one, Some(two), None))
-              case one :: tail_* => List(DMOZCats(one, None, None))
+              case one :: two :: three :: _ => List(DMOZCats(one, Some(two), Some(three)))
+              case one :: two :: _ => List(DMOZCats(one, Some(two), None))
+              case one :: _ => List(DMOZCats(one, None, None))
               case _ => Nil
             }
-        }.map { dmozCat => WebSiteCategoriesTextV2(uri, origUri, text, dmozCat) }
+        }.map { cs =>
+          val cat = (List(cs.top) ++ List(cs.cat2, cs.cat3).map(_.getOrElse("")).filterNot(_ == "")).mkString("/")
+          WebSiteCategoriesText(uri, origUri, Seq(cat).filterNot(_ == ""), text)
+        }.filterNot(_.categories.isEmpty)
+    }
+  }
+
+  def breakIntoSentences(sentenceLength: Int)
+                        (cats: Dataset[WebSiteCategoriesText])
+                        (implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
+    import spark.implicits._
+    cats.flatMap{
+      case WebSiteCategoriesText(uri, origUri, categories, text, origCategories) =>
+        Text.splitAndClean(text)
+          .sliding(sentenceLength, sentenceLength).map{
+          tks => WebSiteCategoriesText(uri, origUri, categories, tks.mkString(" "), origCategories)
+        }
     }
   }
 
   def main(args: Array[String]): Unit = {
     val Config(websitesRawInput, websitesTextOutput, _, websitesCleanOutput, local) = parseArgs(args)
 
-    implicit val spark = makeSparkSession("PreNNProcessor", local)
+    implicit val spark: SparkSession = makeSparkSession("PreNNProcessor", local)
+    import spark.implicits._
 
     /* filter non-english websites */
     runForOutput(websitesTextOutput) {
@@ -37,6 +54,16 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with Proc
         .parquet(websitesTextOutput)
     }
 
+    runForOutput(websitesCleanOutput) {
+      val dmozTextCats = spark.read
+        .parquet(websitesTextOutput)
+        .as[WebSiteCategoriesText]
+
+      (truncateOrigCategoriesToTop3 _ andThen breakIntoSentences(256)) (dmozTextCats)
+        .write
+        .option("compression", "snappy")
+        .parquet(websitesCleanOutput)
+    }
   }
 
 }

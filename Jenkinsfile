@@ -18,7 +18,7 @@ pipeline {
         stage('Run PreNN processor') {
             steps {
                 script {
-                    sh "./02_apply_categories_extract_text.sh "
+                    sh "./02_1_top3_categories_extract_text.sh "
                 }
             }
         }

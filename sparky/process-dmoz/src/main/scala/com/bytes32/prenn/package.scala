@@ -8,6 +8,4 @@ package object prenn {
 
   case class DMOZCats(top: String, cat2: Option[String], cat3: Option[String])
 
-  case class WebSiteCategoriesTextV2(uri: String, origUri: String, text: String, categories:DMOZCats)
-
 }

@@ -24,11 +24,11 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
           WebSiteCategoriesText("uri", "origUri", categories, "text")
       }.toDS()
 
-    val actual: Array[DMOZCats] = truncateOrigCategories(sample).collect().map(_.categories)
-    val expected = Seq(DMOZCats("Blerg", None, None),
-      DMOZCats("Blergo", Some("Blargo"), None),
-      DMOZCats("Blergo", Some("Blargo"), Some("The")),
-      DMOZCats("Regional", Some("Europe"), Some("United_Kingdom")))
+    val actual: Array[Seq[String]] = truncateOrigCategoriesToTop3(sample).collect().map(_.categories)
+    val expected = Seq(Seq("Blerg"),
+      Seq("Blergo/Blargo"),
+      Seq("Blergo/Blargo/The"),
+      Seq("Regional/Europe/United_Kingdom"))
     actual should contain allElementsOf expected
   }
 }

@@ -46,15 +46,18 @@ class PreNNTokenizerSpec extends FlatSpec with Matchers with HasSpark {
   it should "create the embeddings matrix from glo vectors" in {
     import spark.implicits._
     val vocabulary = Map("the" -> 2, "cat" -> 1, "no-embeddings" -> 3)
-    val gloVectors = Seq(GloVector("the", Seq(1f, 2f, 3f)), GloVector("cat", Seq(3f, 2f, 1f)), GloVector("no-vocab", Seq(4f, 5f, 6f))).toDS()
+    val gloVectors = Seq(
+      GloVector("the", Seq(1f, 2f, 3f)),
+      GloVector("cat", Seq(3f, 2f, 1f)),
+      GloVector("no-vocab", Seq(4f, 5f, 6f))).toDS()
     val (actual, vocabWithEmbeddings) = PreNNTokenizer.generateEmbeddings(vocabulary, gloVectors)
 
-    vocabWithEmbeddings should be(Map("the" -> 1, "cat" -> 2))
+    vocabWithEmbeddings should be(Map("the" -> 2, "cat" -> 1, "no-embeddings" -> 3))
 
     actual.collect() should contain theSameElementsInOrderAs List(
-      Row(Seq(0f, 0f, 0f)),
+      Row(Seq(3f, 2f, 1f)),
       Row(Seq(1f, 2f, 3f)),
-      Row(Seq(3f, 2f, 1f))
+      Row(Seq(0f, 0f, 0f))
     )
   }
 

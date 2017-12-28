@@ -96,27 +96,21 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     import spark.implicits._
     val gvSize = gloVectors.head().vector.length //too much?
 
-    val zeroEmbedding = Seq(
-      Seq.fill(gvSize)(0f)
-    ).toDF("vector")
+    val zeroEmbedding = Seq.fill(gvSize)(0f)
 
     /* get embeddings only for words in vocabulary */
-    val wordVectors = gloVectors.select('word).map(_.getString(0)).collect().toSet
-    val newVocabulary = wordVectors.intersect(vocabulary.keySet).zipWithIndex.map {
-      case (word, i: Int) => word -> (i + 1)
-    }.toMap // all the words for which we have embeddings
+    val newVocabulary = vocabulary.toSeq.toDS()
 
-    val wordEmbeddings = gloVectors.flatMap { glV =>
-      newVocabulary.get(glV.word).map(id => id -> glV.vector)
-    }.toDF("id", "vector")
+    val wordEmbeddings = newVocabulary.joinWith(gloVectors, $"_1"===$"word", "left_outer")
+      .map{
+        case ((word, id), GloVector(_, vector)) => (word, id, vector)
+        case ((word, id), null) => (word, id, zeroEmbedding)
+      }.toDF("word", "id", "vector")
       .sort("id")
-      .drop("id")
-
-    val embeddings = zeroEmbedding
-      .drop("id", "word")
-      .union(wordEmbeddings)
+      .drop("word", "id")
       .coalesce(1)
-    (embeddings, newVocabulary)
+
+    (wordEmbeddings, vocabulary)
   }
 
   case class WebSiteFeature(uri: String, origUri: String, paddedWords: Seq[Int], category: Seq[Int])

@@ -22,8 +22,8 @@ object VocabularyModule extends TwitterModule {
   type WordToIndex = String => Int
 
   val home: String = System.getProperty("user.home")
-  val vocabularyPath: Flag[String] = flag("vocabularyPath", home + "/ml-work/dmoz/websites-features/vocabulary", "path to word to number index")
-  val labelsPath: Flag[String] = flag("labels", home + "/ml-work/dmoz/websites-features/labels", "path to word to number index")
+  val vocabularyPath: Flag[String] = flag("vocabularyPath", home + "/ml-work/dmoz/website-features-2/vocabulary", "path to word to number index")
+  val labelsPath: Flag[String] = flag("labels", home + "/ml-work/dmoz/website-features-2/labels", "path to word to number index")
 
   def labels(lines: TraversableOnce[String]): Vector[String] =
     lines.map(_.trim).filter(_.nonEmpty).toVector
