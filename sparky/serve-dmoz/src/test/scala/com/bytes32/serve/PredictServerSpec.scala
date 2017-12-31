@@ -9,7 +9,7 @@ class PredictServerSpec extends FeatureTest {
 
   override val server = new EmbeddedHttpServer(new PredictServer)
 
-  test("PredictServer#empty predict request gets empty predict response") {
+  ignore("PredictServer#empty predict request gets empty predict response") {
     server.httpPost(
       path = "/predict",
       postBody =
@@ -22,7 +22,7 @@ class PredictServerSpec extends FeatureTest {
       withBody = """{"preds":[]}""")
   }
 
-  test("PredictServer#technology predict a fashion category ") {
+  ignore("PredictServer#technology predict a fashion category ") {
     server.httpPost(
       path = "/predict",
       postBody =
@@ -35,7 +35,7 @@ class PredictServerSpec extends FeatureTest {
       withBody = """{"preds":[{"predictions":[7.609683E-13,3.7121806E-13,7.967529E-11,5.7463996E-14,4.222984E-11,4.9015183E-9,2.6509138E-8,2.3538577E-8,3.6340434E-11,2.8148678E-8,2.772427E-12,1.1120433E-7,0.99999964,6.361493E-8,5.721139E-13,7.723009E-8,3.9728146E-14,1.05649525E-13,4.4385007E-10,1.7390489E-8],"labels":["entertainment","news","finance","education","medical","sport","gardening","technology","music","cars","science","food","fashion","photography","health","bikes","property","parents","home","travel"],"max2":["fashion","food"]}]}""")
   }
 
-  test("PredictServer#sports predict technology category from pcworld.co.uk") {
+  ignore("PredictServer#sports predict technology category from pcworld.co.uk") {
     val response = server.httpPost(
       path = "/predictWebSite",
       postBody =
