@@ -8,9 +8,9 @@ import org.apache.spark.sql.functions.explode
 object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
 
   def splitTrainTestValid[T](features: Dataset[T], buckets: Array[Double] = Array(0, 0.1, 0.2, 1), labels: Seq[String] = Seq("valid", "test", "train"))
-                         (implicit spark: SparkSession): Map[String, Dataset[T]] = {
+                            (implicit spark: SparkSession): Map[String, Dataset[T]] = {
 
-    val weights: Array[Double] = (buckets zip buckets.drop(1)).map{ case(start, end) => end - start }
+    val weights: Array[Double] = (buckets zip buckets.drop(1)).map { case (start, end) => end - start }
 
     (labels zip features.randomSplit(weights)).toMap
   }
@@ -39,9 +39,9 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     val validPath = featuresPath + "/valid"
 
     runForOutput(trainPath, testPath, validPath) {
-      featSplit("train").write.json(trainPath)
-      featSplit("test").write.json(testPath)
-      featSplit("valid").write.json(validPath)
+      featSplit("train").write.option("compression", "gzip").json(trainPath)
+      featSplit("test").write.option("compression", "gzip").json(testPath)
+      featSplit("valid").write.option("compression", "gzip").json(validPath)
     }
 
     val embeddingsPath = config.outputPath + "/embeddings"
@@ -101,8 +101,8 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     /* get embeddings only for words in vocabulary */
     val newVocabulary = vocabulary.toSeq.toDS()
 
-    val wordEmbeddings = newVocabulary.joinWith(gloVectors, $"_1"===$"word", "left_outer")
-      .map{
+    val wordEmbeddings = newVocabulary.joinWith(gloVectors, $"_1" === $"word", "left_outer")
+      .map {
         case ((word, id), GloVector(_, vector)) => (word, id, vector)
         case ((word, id), null) => (word, id, zeroEmbedding)
       }.toDF("word", "id", "vector")

@@ -5,7 +5,7 @@ EXISTS=$(gcloud dataproc clusters --project brave-monitor-160414 --format json l
 if [ "$EXISTS" == "true" ]; then
     echo "$CLUSTER_NAME exists"
 else
-gcloud dataproc clusters create ${CLUSTER_NAME} \
+gcloud beta dataproc clusters create ${CLUSTER_NAME} \
     --image-version preview \
     --zone europe-west1-c \
     --master-machine-type n1-standard-4 \
