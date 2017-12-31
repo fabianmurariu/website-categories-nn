@@ -8,7 +8,7 @@ gsutil cp provision-docker-gpu.sh gs://code-deploy/provision-docker-gpu.sh
 # Create the instance with the GPU
 PROJECT="brave-monitor-160414"
 KEY=$(cat ~/.ssh/id_rsa.pub)
-gcloud beta compute --project ${PROJECT} instances create "instance-1" --zone "europe-west1-b" \
+gcloud compute --project ${PROJECT} instances create "instance-1" --zone "europe-west1-b" \
     --machine-type "n1-highmem-8" \
     --subnet "default" \
     --metadata "Name=gpu-deep-learning-1,ssh-keys=ubuntu:${KEY}" \
