@@ -5,4 +5,6 @@ gcloud dataproc jobs submit spark --cluster ${CLUSTER_NAME} \
   --jar gs://tripll-data/code-deploy/process-dmoz-assembly-0.0.1.jar -- \
   -w gs://websites-classify/websites-categories-clean-top3 \
   -g gs://websites-classify/glove.6B.50d.txt.gz \
-  -o gs://websites-classify/websites-features-top3
+  -o gs://websites-classify/websites-features-top3 \
+  -s 128 \
+  -v 50000

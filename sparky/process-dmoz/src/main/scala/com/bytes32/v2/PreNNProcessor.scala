@@ -59,7 +59,7 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with Proc
         .parquet(websitesTextOutput)
         .as[WebSiteCategoriesText]
 
-      (truncateOrigCategoriesToTop3 _ andThen breakIntoSentences(256)) (dmozTextCats)
+      (truncateOrigCategoriesToTop3 _ andThen breakIntoSentences(128)) (dmozTextCats)
         .write
         .option("compression", "snappy")
         .parquet(websitesCleanOutput)

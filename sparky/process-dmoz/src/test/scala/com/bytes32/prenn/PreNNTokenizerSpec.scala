@@ -38,9 +38,9 @@ class PreNNTokenizerSpec extends FlatSpec with Matchers with HasSpark {
     labels.collect() should contain theSameElementsAs Seq("sport", "news", "health")
 
     features.collect() should contain theSameElementsAs Seq(
-      WebSiteFeature("uri1", "origUri1", Seq(5, 1, 2, 6, 5, 7), Seq(0, 1, 0)),
-      WebSiteFeature("uri2", "origUri2", Seq(5, 4, 5, 1, 2, 0), Seq(1, 0, 0)),
-      WebSiteFeature("uri3", "origUri3", Seq(5, 2, 0, 0, 0, 0), Seq(0, 0, 1)))
+      WebSiteFeature("uri1", "origUri1", Seq(5, 1, 2, 6, 5, 7), Seq(0, 1, 0), "sport"),
+      WebSiteFeature("uri2", "origUri2", Seq(5, 4, 5, 1, 2, 0), Seq(1, 0, 0), "news"),
+      WebSiteFeature("uri3", "origUri3", Seq(5, 2, 0, 0, 0, 0), Seq(0, 0, 1), "health"))
   }
 
   it should "create the embeddings matrix from glo vectors" in {
@@ -99,9 +99,10 @@ class PreNNTokenizerSpec extends FlatSpec with Matchers with HasSpark {
   lazy val genFeatures: Gen[WebSiteFeature] = for {
     uri <- Gen.alphaNumStr
     origUri <- Gen.alphaNumStr
+    categoryName <- Gen.alphaNumStr
     features <- Gen.buildableOfN[Seq[Int], Int](10, Gen.choose(0, 50))
     cats: Seq[Int] <- Gen.oneOf(List(Seq(0, 1), Seq(1, 0)))
-  } yield WebSiteFeature(uri, origUri, features, cats)
+  } yield WebSiteFeature(uri, origUri, features, cats, categoryName)
 
   def sampleGen[T](g: Gen[T], failBudget: Int = 10): Stream[T] = g.sample match {
     case Some(t) => t #:: sampleGen(g, failBudget)

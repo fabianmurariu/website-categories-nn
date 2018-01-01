@@ -113,7 +113,7 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     (wordEmbeddings, vocabulary)
   }
 
-  case class WebSiteFeature(uri: String, origUri: String, paddedWords: Seq[Int], category: Seq[Int])
+  case class WebSiteFeature(uri: String, origUri: String, paddedWords: Seq[Int], category: Seq[Int], categoryName:String)
 
   case class GloVector(word: String, vector: Seq[Float])
 
@@ -169,7 +169,8 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     (vocabulary, expandCategories)
   }
 
-  def featuresAndLabels(sequenceLength: Int, vocabulary: Vocabulary, source: DataFrame)(implicit spark: SparkSession): (Dataset[WebSiteFeature], Dataset[String]) = {
+  def featuresAndLabels(sequenceLength: Int, vocabulary: Vocabulary, source: DataFrame)
+                       (implicit spark: SparkSession): (Dataset[WebSiteFeature], Dataset[String]) = {
     import spark.implicits._
 
     val indexer = new StringIndexer()
@@ -189,7 +190,8 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
         WebSiteFeature(uri,
           origUri,
           numericTokens,
-          oheLabel)
+          oheLabel,
+          category)
     }
     (features, indexer.labels.seq.toDS().coalesce(1))
   }
