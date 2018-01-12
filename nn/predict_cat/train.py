@@ -26,7 +26,7 @@ def grouper(iterable, chunk_size):
 
 
 def read_file_lines(file_path, fn):
-    fh = gzip.open(file_path, 'r') if str(file_path).endswith(".gz") else open(file_path, 'r')
+    fh = gzip.open(file_path, 'r') if str(file_path).endswith(".gz") else open(file_path, 'r', encoding='UTF-8')
     while True:
         line = fh.readline()
         if not line:
@@ -63,7 +63,7 @@ def load_class_weights(path, labels):
     lines = list(json_lines(path))
     labels_idx = {label: idx for label, idx in zip(labels, range(len(labels)))}
     weights = lines[0]['weights']
-    return {labels_idx[label]: weight for label, weight in weights.iteritems() if label in labels_idx}
+    return {labels_idx[label]: weight for label, weight in weights.items() if label in labels_idx}
 
 
 def data_point(line):
