@@ -15,14 +15,18 @@ from keras.optimizers import Adam
 from keras.models import Model
 
 
+def process_categories(category_name):
+    return [l.strip() for l in category_name.split("/")]
+
+
 def category_encoders(features_path_root, missing_label='X'):
     labels = join(features_path_root, 'labels')
-    labels3 = list(read_lines_paths(lambda line: line.split("/"), glob(labels + '/part*'), infinite=False))
+    labels3 = list(read_lines_paths(process_categories, glob(labels + '/part*'), infinite=False))
     encoders = []
     for i in range(0, 3):
         label_values = [l[i] if len(l) > i else missing_label for l in labels3]
         l_enc = prep.LabelEncoder()
-        l_enc.fit(label_values)
+        l_enc.fit(list(label_values))
         ohe = prep.OneHotEncoder()
         ohe.fit(l_enc.transform(label_values).reshape(-1, 1))
         encoders += [(l_enc, ohe)]
@@ -31,14 +35,18 @@ def category_encoders(features_path_root, missing_label='X'):
 
 def transform_label(labels, l_enc, ohe):
     # type: (list, prep.LabelEncoder, prep.OneHotEncoder) -> np.ndarray
+    # try:
     return ohe.transform(l_enc.transform(labels).reshape(-1, 1)).toarray()
+    # except ValueError as e:
+    #     print("@@@@@@@@@@ WTF!! @@@@@@@@@@@ %s" % labels)
+    #     raise e
 
 
 def data_point(line):
     point = json.loads(line)
     x1 = np.array(point['paddedWords'])
     category_name = point['categoryName']
-    categories = category_name.split("/")
+    categories = process_categories(category_name)
     return x1, categories[0], categories[1]
 
 
@@ -108,7 +116,7 @@ def build_model(embeddings_path, embedding_dim=50, num_words=50000, max_seq_leng
     x = Bidirectional(LSTM(32, return_sequences=True))(x)
     x = Bidirectional(LSTM(32, return_sequences=True))(x)
     x = LSTM(32)(x)
-    x = Dense(32, activation='sigmoid', name='cat1_output')(x)
+    x = Dense(29, activation='sigmoid', name='cat1_output')(x)
     opt = Adam()
     model = Model(inputs=[sentence_input], outputs=[x])
 
@@ -166,6 +174,4 @@ if __name__ == "__main__":
     model_path = path.abspath(path.expanduser(opts_dict['--model_out']))
     epochs = int(opts_dict.get('--epochs', 50))
 
-    oh1, oh2, oh3 = category_encoders(features_path)
-    (l_enc, ohe) = oh1
     main(features_path_root=features_path, model_path=model_path, epochs=epochs)
