@@ -27,6 +27,13 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     val gloVectors = loadGloVectors(config.gloVectorsPath)
     val websitesCategoriesText = spark.read.parquet(config.websitesCleanPath).as[WebSiteCategoriesText]
 
+    val classWeightsPath = config.outputPath + "/class-weights"
+    val (classWeightsInner, classCountsInner) = classWeights(websitesCategoriesText)
+    runForOutput(classWeightsPath) {
+      val classWeightsDF = Seq("classWeights" -> classWeightsInner).toDF("name", "weights").coalesce(1)
+      classWeightsDF.write.json(classWeightsPath)
+    }
+
     val (vocabulary: Map[String, Int], preFeatures) = getVocabularySplitTextIntoTokens(config.vocabSize, websitesCategoriesText)
     val (embeddings, vocabWithEmbeddings: Vocabulary) = generateEmbeddings(vocabulary, gloVectors)
 
@@ -59,14 +66,9 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
       vocabWithEmbeddings.toSeq.toDF("word", "id").repartition(1).write.json(vocabularyPath)
     }
 
-    val classWeightsPath = config.outputPath + "/class-weights"
-    runForOutput(classWeightsPath) {
-      val classWeightsDF = Seq("classWeights" -> classWeights(websitesCategoriesText)).toDF("name", "weights").coalesce(1)
-      classWeightsDF.write.json(classWeightsPath)
-    }
   }
 
-  def classWeights(ds: Dataset[WebSiteCategoriesText])(implicit spark: SparkSession): Map[String, Double] = {
+  def classWeights(ds: Dataset[WebSiteCategoriesText])(implicit spark: SparkSession): (Map[String, Double], Map[String, Long]) = {
     import spark.implicits._
     val categoryCount: Map[String, Long] = ds
       .select("categories")
@@ -79,7 +81,8 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
 
     val max = categoryCount.values.max.toDouble
 
-    categoryCount.map { case (cat, count) => cat -> max / count }
+    val classWeights = categoryCount.map { case (cat, count) => cat -> max / count }
+    (classWeights, categoryCount)
   }
 
   def loadGloVectors(gloVectorsPath: String)(implicit spark: SparkSession): Dataset[GloVector] = {

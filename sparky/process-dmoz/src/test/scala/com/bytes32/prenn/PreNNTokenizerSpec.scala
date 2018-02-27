@@ -74,7 +74,9 @@ class PreNNTokenizerSpec extends FlatSpec with Matchers with HasSpark {
       WebSiteCategoriesText("uri3", "origUri3", Seq("technology"), "")
     ).toDS()
 
-    PreNNTokenizer.classWeights(sample) should be(Map("sport" -> 5f / 2, "health" -> 1f, "technology" -> 5f / 1))
+    PreNNTokenizer.classWeights(sample) should be(
+      (Map("sport" -> 5f / 2, "health" -> 1f, "technology" -> 5f / 1),
+        Map("technology" -> 1l, "sport" -> 2l, "health" -> 5l)))
   }
 
 
