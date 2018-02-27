@@ -116,7 +116,7 @@ def build_model(embeddings_path, embedding_dim=50, num_words=50000, max_seq_leng
     x = Bidirectional(LSTM(32, return_sequences=True))(x)
     x = Bidirectional(LSTM(32, return_sequences=True))(x)
     x = LSTM(32)(x)
-    x = Dense(29, activation='sigmoid', name='cat1_output')(x)
+    x = Dense(28, activation='sigmoid', name='cat1_output')(x)
     opt = Adam()
     model = Model(inputs=[sentence_input], outputs=[x])
 

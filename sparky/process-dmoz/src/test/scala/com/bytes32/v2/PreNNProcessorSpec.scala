@@ -25,10 +25,10 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
       }.toDS()
 
     val actual: Array[Seq[String]] = truncateOrigCategoriesToTop3(sample).collect().map(_.categories)
-    val expected = Seq(Seq("Blerg"),
-      Seq("Blergo/Blargo"),
-      Seq("Blergo/Blargo/The"),
-      Seq("Regional/Europe/United_Kingdom"))
+    val expected = Seq(
+      Seq("blerg"),
+      Seq("blergo/blargo"),
+      Seq("blergo/blargo/the"))
     actual should contain allElementsOf expected
   }
 }

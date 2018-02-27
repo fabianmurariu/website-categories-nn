@@ -96,4 +96,7 @@ lazy val serveDmoz = (project in file("serve-dmoz")).
   )
 
 lazy val root = (project in file("."))
-  .aggregate(processDmoz, serveDmoz)
+  .settings(organization := "com.bytes32",
+    version := "0.0.1",
+    scalaVersion := "2.11.8"
+  ).aggregate(processDmoz, serveDmoz)

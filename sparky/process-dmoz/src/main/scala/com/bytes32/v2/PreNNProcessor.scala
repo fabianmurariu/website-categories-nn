@@ -9,10 +9,12 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with Proc
   def truncateOrigCategoriesToTop3(cats: Dataset[WebSiteCategoriesText])(implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
     import spark.implicits._
     cats.flatMap {
+      case WebSiteCategoriesText(_, _, categories, _, _) if exclude(categories) =>
+        List.empty
       case WebSiteCategoriesText(uri, origUri, categories, text, _) =>
         categories.flatMap {
           cat =>
-            val allCats = cat.stripPrefix("Top/").split("/").toList
+            val allCats = stripPrefixes(cat).split("/").map(_.trim).toList
             allCats match {
               case one :: two :: three :: _ => List(DMOZCats(one, Some(two), Some(three)))
               case one :: two :: _ => List(DMOZCats(one, Some(two), None))
@@ -26,14 +28,33 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with Proc
     }
   }
 
+  def exclude(categories: Seq[String]): Boolean = {
+    val tokens = {
+      categories.flatMap { cat =>
+        stripPrefixes(cat).split("/").map(_.trim).map(_.toLowerCase)
+      }
+    }
+    tokens.headOption.contains("regional") ||
+      tokens.headOption.contains("world")
+  }
+
+  private def stripPrefixes(cat: String) = {
+    cat.stripPrefix("\"")
+      .stripPrefix("Top/")
+      .stripSuffix("\"")
+      .replace(",", "")
+      .replace("'s", "")
+      .toLowerCase()
+  }
+
   def breakIntoSentences(sentenceLength: Int)
                         (cats: Dataset[WebSiteCategoriesText])
                         (implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
     import spark.implicits._
-    cats.flatMap{
+    cats.flatMap {
       case WebSiteCategoriesText(uri, origUri, categories, text, origCategories) =>
         Text.splitAndClean(text)
-          .sliding(sentenceLength, sentenceLength).map{
+          .sliding(sentenceLength, sentenceLength).map {
           tks => WebSiteCategoriesText(uri, origUri, categories, tks.mkString(" "), origCategories)
         }
     }
