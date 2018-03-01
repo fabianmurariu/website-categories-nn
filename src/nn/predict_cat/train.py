@@ -4,6 +4,9 @@ import itertools
 import json
 from glob import glob
 
+import tensorflow as tf
+sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+
 import numpy as np
 from keras.layers import Conv1D, MaxPooling1D, Embedding
 from keras.layers import Dense, Input, Flatten, Dropout, BatchNormalization
@@ -67,7 +70,7 @@ def load_class_weights(path, labels):
 
 
 def data_point(line):
-    point = json.loads(line)
+    point = json.loads(line if isinstance(line, str) else line.decode('utf-8'))
     x1 = np.array(point['paddedWords'])
     y1 = np.array(point['category'])
     return x1, y1
@@ -115,15 +118,15 @@ def build_model(embeddings_path, labels, max_nb_words, embedding_dim=50, max_seq
     x = Conv1D(128, 5, activation='relu')(embedded_sequences)
     x = BatchNormalization()(x)
     x = MaxPooling1D(5)(x)
-    x = BatchNormalization()(x)
-    x = Conv1D(128, 5, activation='relu')(x)
-    x = BatchNormalization()(x)
-    x = MaxPooling1D(5)(x)
-    x = BatchNormalization()(x)
-    x = Conv1D(128, 5, activation='relu')(x)
-    x = BatchNormalization()(x)
-    x = MaxPooling1D(35)(x)
-    x = BatchNormalization()(x)
+    # x = BatchNormalization()(x)
+    # x = Conv1D(128, 5, activation='relu')(x)
+    # x = BatchNormalization()(x)
+    # x = MaxPooling1D(5)(x)
+    # x = BatchNormalization()(x)
+    # x = Conv1D(128, 5, activation='relu')(x)
+    # x = BatchNormalization()(x)
+    # x = MaxPooling1D(35)(x)
+    # x = BatchNormalization()(x)
     x = Flatten()(x)
     x = Dense(512, activation='relu')(x)
     x = Dropout(.1)(x)
@@ -171,8 +174,8 @@ if __name__ == "__main__":
     print("Training for %s epochs" % epochs)
     print("Saving the model at %s" % model_path)
 
-    MAX_SEQUENCE_LENGTH = 1000
-    MAX_NB_WORDS = 20000
+    MAX_SEQUENCE_LENGTH = 128
+    MAX_NB_WORDS = 50000
     EMBEDDING_DIM = 50
     batch_size = 16
     # first, build index mapping words in the embeddings set
