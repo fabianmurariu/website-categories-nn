@@ -110,19 +110,19 @@ def build_model(embeddings_path, labels, max_nb_words, embedding_dim=50, max_seq
                                 embedding_dim,
                                 weights=[embedding_matrix],
                                 input_length=max_seq_length,
-                                trainable=False)
+                                trainable=True)
 
     # train a 1D convnet with global maxpooling
     sequence_input = Input(shape=(max_seq_length,), dtype='int32')
     embedded_sequences = embedding_layer(sequence_input)
-    x = Conv1D(128, 5, activation='relu')(embedded_sequences)
+    x = Conv1D(128, 3, activation='relu')(embedded_sequences)
     x = BatchNormalization()(x)
-    x = MaxPooling1D(5)(x)
-    # x = BatchNormalization()(x)
-    # x = Conv1D(128, 5, activation='relu')(x)
-    # x = BatchNormalization()(x)
-    # x = MaxPooling1D(5)(x)
-    # x = BatchNormalization()(x)
+    x = MaxPooling1D(3)(x)
+    x = BatchNormalization()(x)
+    x = Conv1D(128, 3, activation='relu')(x)
+    x = BatchNormalization()(x)
+    x = MaxPooling1D(3)(x)
+    x = BatchNormalization()(x)
     # x = Conv1D(128, 5, activation='relu')(x)
     # x = BatchNormalization()(x)
     # x = MaxPooling1D(35)(x)
@@ -143,7 +143,7 @@ def build_model(embeddings_path, labels, max_nb_words, embedding_dim=50, max_seq
 
 
 def fit_model(model, valid_ds, train_ds, class_weights, epochs):
-    steps_per_epoch = 3000
+    steps_per_epoch = 5000
     model.fit_generator(train_ds, validation_data=valid_ds, steps_per_epoch=steps_per_epoch,
                         validation_steps=steps_per_epoch / 10,
                         epochs=epochs, class_weight=class_weights)
@@ -168,7 +168,7 @@ if __name__ == "__main__":
 
     pre_nn_output = path.abspath(path.expanduser(opts_dict['--features_path']))
     model_path = path.abspath(path.expanduser(opts_dict['--model_out']))
-    epochs = int(opts_dict.get('--epochs', 50))
+    epochs = int(opts_dict.get('--epochs', 1000))
 
     print("Loading features from %s" % pre_nn_output)
     print("Training for %s epochs" % epochs)
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     MAX_SEQUENCE_LENGTH = 128
     MAX_NB_WORDS = 50000
     EMBEDDING_DIM = 50
-    batch_size = 16
+    batch_size = 64
     # first, build index mapping words in the embeddings set
     # to their embedding vector
     embeddings_path = pre_nn_output + '/embeddings'
