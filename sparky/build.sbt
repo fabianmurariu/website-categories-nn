@@ -1,4 +1,4 @@
-lazy val sparkVersion = "2.1.1"
+lazy val sparkVersion = "2.3.0"
 
 lazy val commonSettings = Seq(
   organization := "com.bytes32",
@@ -39,9 +39,9 @@ lazy val processDmoz = (project in file("process-dmoz")).
       "com.optimaize.languagedetector" % "language-detector" % "0.6" exclude("com.google.guava", "guava"),
       "com.google.guava" % "guava" % "16.0.1",
       "org.scala-lang.modules" % "scala-xml_2.11" % "1.0.6",
-      "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
-      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
-      "org.apache.spark" %% "spark-mllib" % sparkVersion % Provided)
+      "org.apache.spark" %% "spark-core" % sparkVersion,
+      "org.apache.spark" %% "spark-sql" % sparkVersion,
+      "org.apache.spark" %% "spark-mllib" % sparkVersion)
   )
 
 lazy val versions = new {

@@ -21,7 +21,7 @@ class PreNNTokenizerSpec extends FlatSpec with Matchers with HasSpark {
     ).toDS()
 
     val (vocabulary, source) = getVocabularySplitTextIntoTokens(50, sample)
-    vocabulary.keySet should contain theSameElementsAs Set("lazy", "is", "dives", "brow", "dog", "over", "healthy", "quick", "fox", "the")
+    vocabulary.keySet should contain theSameElementsAs Set("lazy", "dives", "brow", "dog", "healthy", "quick", "fox")
   }
 
   it should "transform sentences and categories into numerical features" in {

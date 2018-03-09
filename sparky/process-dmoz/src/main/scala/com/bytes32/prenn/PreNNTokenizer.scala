@@ -21,7 +21,7 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
   def main(args: Array[String]): Unit = {
     val config = parse(args)
 
-    implicit val spark = makeSparkSession("PreNNDataSetGenerator")
+    implicit val spark: SparkSession = makeSparkSession("PreNNDataSetGenerator", config.local)
     import spark.implicits._
 
     val gloVectors = loadGloVectors(config.gloVectorsPath)
@@ -39,6 +39,8 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
 
     val (features, labels) = featuresAndLabels(config.sequenceLength, vocabWithEmbeddings, preFeatures)
     val featuresPath = config.outputPath + "/features"
+
+    features.cache()
 
     val featSplit = splitTrainTestValid(features)
     val trainPath = featuresPath + "/train"
@@ -148,7 +150,7 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
                     gloVectorsPath: String,
                     outputPath: String,
                     vocabSize: Int = 20000,
-                    sequenceLength: Int = 1000, local: Boolean = false)
+                    sequenceLength: Int = 128, local: Boolean = false)
 
   def getVocabularySplitTextIntoTokens(vocabSize: Int, ds: Dataset[WebSiteCategoriesText])
                                       (implicit spark: SparkSession): (Vocabulary, DataFrame) = {

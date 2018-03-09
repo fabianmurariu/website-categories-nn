@@ -41,5 +41,6 @@ object Text {
     removeNonLetterChars andThen
     splitText andThen
     splitCamelCaseWords andThen
-    lowercase
+    lowercase andThen
+    removeCommonEnglishWordsAndSingleLetters
 }
