@@ -1,5 +1,6 @@
 package com.bytes32.prenn
 
+import org.apache.spark.ml.linalg.SparseVector
 import org.apache.spark.sql.{Row, SparkSession}
 import org.scalacheck.Gen
 import org.scalatest.{FlatSpec, Matchers}
@@ -21,26 +22,30 @@ class PreNNTokenizerSpec extends FlatSpec with Matchers with HasSpark {
     ).toDS()
 
     val (vocabulary, source) = getVocabularySplitTextIntoTokens(50, sample)
-    vocabulary.keySet should contain theSameElementsAs Set("lazy", "dives", "brow", "dog", "healthy", "quick", "fox")
+    vocabulary.keySet should contain theSameElementsAs Set("lazy", "is", "dives", "brow", "dog", "over", "healthy", "quick", "fox", "the")
   }
 
   it should "transform sentences and categories into numerical features" in {
     import spark.implicits._
     val sample = Seq(
-      ("uri1", "origUri1", "sport", "text", "the quick brow fox dives over the lazy dog".split(" ")),
-      ("uri2", "origUri2", "news", "text", "the dog notices the quick fox and wags his tail".split(" ")),
-      ("uri3", "origUri3", "health", "text", "the fox is healthy".split(" "))
-    ).toDF("uri", "origUri", "category", "text", "tokens")
+      ("uri1", "origUri1", "sport", "the quick brow fox dives over the lazy dog"),
+      ("uri2", "origUri2", "news", "the dog notices the quick fox and wags his tail"),
+      ("uri3", "origUri3", "health", "the fox is healthy")
+    ).toDF("uri", "origUri", "category", "text")
 
     val vocabulary = Map("quick" -> 1, "fox" -> 2, "brown" -> 3, "dog" -> 4, "the" -> 5, "over" -> 6, "lazy" -> 7)
     val (features, labels) = featuresAndLabels(6, vocabulary, sample)
 
     labels.collect() should contain theSameElementsAs Seq("sport", "news", "health")
 
-    features.collect() should contain theSameElementsAs Seq(
-      WebSiteFeature("uri1", "origUri1", Seq(5, 1, 2, 6, 5, 7), Seq(0, 1, 0), "sport"),
-      WebSiteFeature("uri2", "origUri2", Seq(5, 4, 5, 1, 2, 0), Seq(1, 0, 0), "news"),
-      WebSiteFeature("uri3", "origUri3", Seq(5, 2, 0, 0, 0, 0), Seq(0, 0, 1), "health"))
+    spark.udf.register("to_dense", {arr:SparseVector => arr.toArray})
+
+    features.selectExpr("uri", "origUri","tokens","to_dense(category)","categoryName")
+      .as[(String, String, Seq[Int], Seq[Double], String)]
+      .collect() should contain theSameElementsAs Seq(
+      ("uri1", "origUri1", Seq(5, 1, 2, 6, 5, 7), Seq[Double](0, 1, 0), "sport"),
+      ("uri2", "origUri2", Seq(5, 4, 5, 1, 2, 0), Seq[Double](1, 0, 0), "news"),
+      ("uri3", "origUri3", Seq(5, 2, 0, 0, 0, 0), Seq[Double](0, 0, 1), "health"))
   }
 
   it should "create the embeddings matrix from glo vectors" in {
@@ -55,9 +60,9 @@ class PreNNTokenizerSpec extends FlatSpec with Matchers with HasSpark {
     vocabWithEmbeddings should be(Map("the" -> 2, "cat" -> 1, "no-embeddings" -> 3))
 
     actual.collect() should contain theSameElementsInOrderAs List(
-      Row(Seq(3f, 2f, 1f)),
-      Row(Seq(1f, 2f, 3f)),
-      Row(Seq(0f, 0f, 0f))
+      Row("cat",1,Seq(3f, 2f, 1f)),
+      Row("the",2,Seq(1f, 2f, 3f)),
+      Row("no-embeddings",3,Seq(0f, 0f, 0f))
     )
   }
 
@@ -74,9 +79,9 @@ class PreNNTokenizerSpec extends FlatSpec with Matchers with HasSpark {
       WebSiteCategoriesText("uri3", "origUri3", Seq("technology"), "")
     ).toDS()
 
-    PreNNTokenizer.classWeights(sample) should be(
-      (Map("sport" -> 5f / 2, "health" -> 1f, "technology" -> 5f / 1),
-        Map("technology" -> 1l, "sport" -> 2l, "health" -> 5l)))
+    val (weights, _) = PreNNTokenizer.classWeights(sample)
+    weights should be(
+      Map("technology" -> 0.5882352941176471, "sport" -> 0.29411764705882354, "health" -> 0.11764705882352941))
   }
 
 

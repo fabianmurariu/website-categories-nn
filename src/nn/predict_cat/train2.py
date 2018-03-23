@@ -5,10 +5,11 @@ import json
 from glob import glob
 
 import tensorflow as tf
+
 sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
 import numpy as np
-from keras.layers import Conv1D, MaxPooling1D, Embedding
+from keras.layers import Conv1D, MaxPool1D, Embedding, Concatenate
 from keras.layers import Dense, Input, Flatten, Dropout, BatchNormalization
 from keras.models import Model
 from keras.models import load_model
@@ -71,8 +72,11 @@ def load_class_weights(path, labels):
 
 def data_point(line):
     point = json.loads(line if isinstance(line, str) else line.decode('utf-8'))
-    x1 = np.array(point['paddedWords'])
-    y1 = np.array(point['category'])
+    x1 = np.array(point['tokens'])
+    sparse_category = point['category']
+    category = np.zeros(sparse_category['size'])
+    category[sparse_category['indices']] = 1
+    y1 = np.array(category)
     return x1, y1
 
 
@@ -115,29 +119,27 @@ def build_model(embeddings_path, labels, max_nb_words, embedding_dim=50, max_seq
     # train a 1D convnet with global maxpooling
     sequence_input = Input(shape=(max_seq_length,), dtype='int32')
     embedded_sequences = embedding_layer(sequence_input)
-    x = Conv1D(128, 2, activation='relu')(embedded_sequences)
-    x = BatchNormalization()(x)
-    x = MaxPooling1D(2)(x)
-    x = BatchNormalization()(x)
-    x = Conv1D(128, 3, activation='relu')(x)
-    x = BatchNormalization()(x)
-    x = MaxPooling1D(3)(x)
-    x = BatchNormalization()(x)
-    x = Conv1D(128, 5, activation='relu')(x)
-    x = BatchNormalization()(x)
-    x = MaxPooling1D(5)(x)
-    x = BatchNormalization()(x)
-    x = Flatten()(x)
-    x = Dense(512, activation='relu')(x)
-    # x = Dropout(.1)(x)
-    x = Dense(512, activation='relu')(x)
-    # x = Dropout(.1)(x)
-    x = BatchNormalization()(x)
-    x = Dense(len(labels), activation='softmax')(x)
 
-    # opt = Adam(lr=0.1, decay=0.001)
-    opt = SGD()
-    model = Model(sequence_input, x)
+    filter_sizes = [2, 3, 4]
+    convs = []
+    for filter_size in filter_sizes:
+        l_conv = Conv1D(filters=128, kernel_size=filter_size, padding='same', activation='relu')(embedded_sequences)
+        l_pool = MaxPool1D(filter_size)(l_conv)
+        convs.append(l_pool)
+
+    l_merge = Concatenate(axis=1)(convs)
+    l_cov1 = Conv1D(128, 5, activation='relu')(l_merge)
+    # since the text is too long we are maxpooling over 100
+    # and not GlobalMaxPool1D
+    l_pool1 = MaxPool1D(100)(l_cov1)
+    l_flat = Flatten()(l_pool1)
+    l_dense1 = Dense(128, activation='relu')(l_flat)
+    l_dense2 = Dense(128, activation='relu')(l_dense1)
+    l_out = Dense(len(labels), activation='softmax')(l_dense2)
+
+    opt = Adam()
+    # opt = SGD()
+    model = Model(inputs=[sequence_input], outputs=l_out)
 
     model.compile(loss='categorical_crossentropy',
                   optimizer=opt,
@@ -150,7 +152,7 @@ def fit_model(model, valid_ds, train_ds, class_weights, epochs):
     model.fit_generator(train_ds, validation_data=valid_ds, steps_per_epoch=steps_per_epoch,
                         validation_steps=steps_per_epoch / 10,
                         epochs=epochs,
-                        # class_weight=class_weights
+                        class_weight=class_weights
                         )
 
 
@@ -201,7 +203,7 @@ if __name__ == "__main__":
         if path.exists(model_path):
             model = load_model(model_path)
         else:
-            build_model(embeddings_path, labels, MAX_NB_WORDS, EMBEDDING_DIM, MAX_SEQUENCE_LENGTH)
+            model = build_model(embeddings_path, labels, MAX_NB_WORDS, EMBEDDING_DIM, MAX_SEQUENCE_LENGTH)
         print("training...")
         fit_model(model, valid_ds, train_ds, class_weights, epochs)
         print("done training saving model")

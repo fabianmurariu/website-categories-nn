@@ -1,17 +1,18 @@
 package com.bytes32.prenn
 
 import com.typesafe.scalalogging.LazyLogging
-import org.apache.spark.ml.feature.{CountVectorizer, CountVectorizerModel, StringIndexer}
+import org.apache.spark.ml.feature.{CountVectorizer, CountVectorizerModel, OneHotEncoderEstimator, StringIndexer}
+import org.apache.spark.ml.linalg.SparseVector
 import org.apache.spark.sql._
+import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions.explode
 
 object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
 
-  def splitTrainTestValid[T](features: Dataset[T], buckets: Array[Double] = Array(0, 0.1, 0.2, 1), labels: Seq[String] = Seq("valid", "test", "train"))
+  def splitTrainTestValid[T](features: Dataset[T],
+                             weights: Array[Double] = Array(0.1, 0.1, 0.8),
+                             labels: Seq[String] = Seq("valid", "test", "train"))
                             (implicit spark: SparkSession): Map[String, Dataset[T]] = {
-
-    val weights: Array[Double] = (buckets zip buckets.drop(1)).map { case (start, end) => end - start }
-
     (labels zip features.randomSplit(weights)).toMap
   }
 
@@ -25,10 +26,12 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     import spark.implicits._
 
     val gloVectors = loadGloVectors(config.gloVectorsPath)
-    val websitesCategoriesText = spark.read.parquet(config.websitesCleanPath).as[WebSiteCategoriesText]
+    val websitesCategoriesText =
+      spark.read.parquet(config.websitesCleanPath).as[WebSiteCategoriesText]
+        .filter(ws => ws.text.split(" ").length > 10)
 
     val classWeightsPath = config.outputPath + "/class-weights"
-    val (classWeightsInner, classCountsInner) = classWeights(websitesCategoriesText)
+    val (classWeightsInner, _) = classWeights(websitesCategoriesText)
     runForOutput(classWeightsPath) {
       val classWeightsDF = Seq("classWeights" -> classWeightsInner).toDF("name", "weights").coalesce(1)
       classWeightsDF.write.json(classWeightsPath)
@@ -84,7 +87,9 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     val max = categoryCount.values.max.toDouble
 
     val classWeights = categoryCount.map { case (cat, count) => cat -> max / count }
-    (classWeights, categoryCount)
+    val sumWeights = classWeights.values.sum
+    val classWeightsNorm: Map[String, Double] = classWeights.map { case (cat, weight) => cat -> weight / sumWeights }
+    (classWeightsNorm, categoryCount)
   }
 
   def loadGloVectors(gloVectorsPath: String)(implicit spark: SparkSession): Dataset[GloVector] = {
@@ -112,13 +117,11 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
         case ((word, id), null) => (word, id, zeroEmbedding)
       }.toDF("word", "id", "vector")
       .sort("id")
-      .drop("word", "id")
-      .coalesce(1)
 
     (wordEmbeddings, vocabulary)
   }
 
-  case class WebSiteFeature(uri: String, origUri: String, paddedWords: Seq[Int], category: Seq[Int], categoryName:String)
+  case class WebSiteFeature(uri: String, origUri: String, paddedWords: Seq[Int], category: Seq[Int], categoryName: String)
 
   case class GloVector(word: String, vector: Seq[Float])
 
@@ -149,33 +152,29 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
   case class Config(websitesCleanPath: String,
                     gloVectorsPath: String,
                     outputPath: String,
-                    vocabSize: Int = 20000,
+                    vocabSize: Int = 30000,
                     sequenceLength: Int = 128, local: Boolean = false)
 
-  def getVocabularySplitTextIntoTokens(vocabSize: Int, ds: Dataset[WebSiteCategoriesText])
+  def getVocabularySplitTextIntoTokens(vocabSize: Int, source: Dataset[WebSiteCategoriesText])
                                       (implicit spark: SparkSession): (Vocabulary, DataFrame) = {
-    import org.apache.spark.sql.functions.udf
+    import org.apache.spark.sql.functions.{explode, split}
     import spark.implicits._
 
-    val processText = udf {
-      Text.splitAndClean
-    }
-
-    val tokens = ds.withColumn("tokens", processText('text))
+    val ds = source.withColumn("textTokens", split('text, "\\s+"))
 
     val countVectorizer = new CountVectorizer()
-      .setInputCol("tokens")
+      .setInputCol("textTokens")
       .setVocabSize(vocabSize)
       .setOutputCol("counts")
 
-    val model: CountVectorizerModel = countVectorizer.fit(tokens)
+    val model: CountVectorizerModel = countVectorizer.fit(ds)
     val vocabulary = Array.tabulate(model.vocabulary.length) { i => model.vocabulary(i) -> i }.toMap
-    val expandCategories = tokens.select('uri, 'origUri, explode('categories).as("category"), 'text, 'tokens)
+    val expandCategories = ds.select('uri, 'origUri, explode('categories).as("category"), 'text)
     (vocabulary, expandCategories)
   }
 
   def featuresAndLabels(sequenceLength: Int, vocabulary: Vocabulary, source: DataFrame)
-                       (implicit spark: SparkSession): (Dataset[WebSiteFeature], Dataset[String]) = {
+                       (implicit spark: SparkSession): (DataFrame, Dataset[String]) = {
     import spark.implicits._
 
     val indexer = new StringIndexer()
@@ -183,21 +182,31 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
       .setOutputCol("categoryIndex")
       .fit(source)
 
-    val features = source.map {
-      case Row(uri: String, origUri: String, category: String, _, tokens: Seq[_]) =>
-        val oheLabel = indexer.labels.map(l => if (l.equals(category)) 1 else 0)
-        val numericTokens = tokens.view
-          .map(word => vocabulary.getOrElse(word.toString, 0))
+    val dfWIthCatIndexed = indexer.transform(source)
+
+    val ohe = new OneHotEncoderEstimator()
+      .setInputCols(Array("categoryIndex"))
+      .setOutputCols(Array("categoryOhe"))
+      .setDropLast(false)
+      .fit(dfWIthCatIndexed)
+
+    val tokensUdf: UserDefinedFunction = org.apache.spark.sql.functions.udf {
+      text: String =>
+        text.split("\\s+")
+          .view
+          .map(word => vocabulary.getOrElse(word, 0))
           .filter(_ != 0)
           .padTo(sequenceLength, 0)
           .take(sequenceLength)
-
-        WebSiteFeature(uri,
-          origUri,
-          numericTokens,
-          oheLabel,
-          category)
+          .toVector
     }
+    
+    val features = ohe.transform(dfWIthCatIndexed)
+      .selectExpr("uri", "origUri", "categoryOhe", "category", "text")
+      .withColumnRenamed("category", "categoryName")
+      .withColumnRenamed("categoryOhe", "category")
+      .withColumn("tokens", tokensUdf('text))
+
     (features, indexer.labels.seq.toDS().coalesce(1))
   }
 }

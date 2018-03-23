@@ -24,7 +24,7 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
           WebSiteCategoriesText("uri", "origUri", categories, "text")
       }.toDS()
 
-    val actual: Array[Seq[String]] = truncateOrigCategoriesToTop3(sample).collect().map(_.categories)
+    val actual: Array[Seq[String]] = removeRemainingWorldRegionalCatsLowercase(sample).collect().map(_.categories)
     val expected = Seq(
       Seq("blerg"),
       Seq("blergo/blargo"),
@@ -56,6 +56,42 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
       .groupBy('category)
       .count
       .as[(String, Long)]
-      .collect() should contain theSameElementsAs Seq(("religion", 6*7), ("computers", 4*32))
+      .collect() should contain theSameElementsAs Seq(("religion", 6*7), ("computers", 4*24))
+  }
+
+  it should "expand categories based on counts stopping at cutoff" in {
+    import spark.implicits._
+
+    val sample = Seq(
+      WebSiteCategoriesText("u1", "ou1", Seq("a/b/c"),"t1"),
+      WebSiteCategoriesText("u1", "ou1", Seq("a/b/c1"),"t1"),
+      WebSiteCategoriesText("u1", "ou1", Seq("a/b/c2"),"t1"),
+      WebSiteCategoriesText("u1", "ou1", Seq("a/b/c"),"t1"),
+      WebSiteCategoriesText("u1", "ou1", Seq("a1/b1"),"t1"),
+      WebSiteCategoriesText("u1", "ou1", Seq("a1/b2"),"t1"),
+      WebSiteCategoriesText("u1", "ou1", Seq("a2/b2/c2/c3"),"t1"),
+      WebSiteCategoriesText("u1", "ou1", Seq("a2/b2/c2/c3"),"t1"),
+      WebSiteCategoriesText("u1", "ou1", Seq("a2/b2/c2/c3"),"t1"),
+      WebSiteCategoriesText("u1", "ou1", Seq("a2/b2/c2/c3"),"t1"),
+      WebSiteCategoriesText("u1", "ou1", Seq("a2/b2/c2/c3"),"t1")
+    ).toDS()
+
+    val expected = Seq(
+      WebSiteCategoriesText("u1", "u1", Seq("a/b/other"),"t1"),
+      WebSiteCategoriesText("u1", "u1", Seq("a/b/other"),"t1"),
+      WebSiteCategoriesText("u1", "u1", Seq("a/b/other"),"t1"),
+      WebSiteCategoriesText("u1", "u1", Seq("a/b/other"),"t1"),
+      WebSiteCategoriesText("u1", "u1", Seq("a2/b2/c2"),"t1"),
+      WebSiteCategoriesText("u1", "u1", Seq("a2/b2/c2"),"t1"),
+      WebSiteCategoriesText("u1", "u1", Seq("a2/b2/c2"),"t1"),
+      WebSiteCategoriesText("u1", "u1", Seq("a2/b2/c2"),"t1"),
+      WebSiteCategoriesText("u1", "u1", Seq("a2/b2/c2"),"t1"),
+      WebSiteCategoriesText("u1", "u1", Seq("a1/other"),"t1"),
+      WebSiteCategoriesText("u1", "u1", Seq("a1/other"),"t1")
+    )
+
+    val actual = expandPopularCategories(3, 3)(sample).collect()
+
+    actual.diff(expected) should be(Seq.empty[WebSiteCategoriesText])
   }
 }
