@@ -1,7 +1,7 @@
 package com.bytes32.v2
 
-import com.bytes32.prenn.{DMOZCats, HasSpark, Text, WebSiteCategoriesText}
-import org.apache.spark.sql.SparkSession
+import com.bytes32.prenn._
+import org.apache.spark.sql.{Dataset, SparkSession}
 import org.scalatest.{FlatSpec, Matchers}
 
 class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
@@ -13,22 +13,22 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
   "PreNNProcessor v2" should "truncate the original categories into the top 3 levels" in {
     import spark.implicits._
     val sample = Seq(
-      Seq("Top/Blerg"),
-      Seq("Top/"),
-      Seq("Top/Blergo/Blargo"),
-      Seq("Top/Blergo/Blargo/The/Third"),
-      Seq("Top/Regional/Europe/United_Kingdom/Scotland/Dumfries_and_Galloway/Society_and_Culture/Religion")
+      "Top/Blerg",
+      "Top/",
+      "Top/Blergo/Blargo",
+      "Top/Blergo/Blargo/The/Third",
+      "Top/Regional/Europe/United_Kingdom/Scotland/Dumfries_and_Galloway/Society_and_Culture/Religion"
     )
       .map {
-        categories =>
-          WebSiteCategoriesText("uri", "origUri", categories, "text")
+        category =>
+          WebSiteCategory("uri", category, "text")
       }.toDS()
 
-    val actual: Array[Seq[String]] = removeRemainingWorldRegionalCatsLowercase(sample).collect().map(_.categories)
+    val actual = removeRemainingWorldRegionalCatsLowercase(sample).collect().map(_.category)
     val expected = Seq(
-      Seq("blerg"),
-      Seq("blergo/blargo"),
-      Seq("blergo/blargo"))
+      "blerg",
+      "blergo/blargo",
+      "blergo/blargo")
     actual should contain allElementsOf expected
   }
 
@@ -46,13 +46,12 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
 
     val sample = (Seq.fill(6){"religion"} ++ Seq.fill(2){"sport"} ++ Seq.fill(4){"computers"}).map{
       category =>
-        WebSiteCategoriesText("uri1", "uri1", Seq(category), text)
+        WebSiteCategory("uri1", category, text)
     }.toDS
 
     val actual = breakIntoSentences(16, 2)(sample)
 
     actual
-      .selectExpr("explode(categories) as category")
       .groupBy('category)
       .count
       .as[(String, Long)]
@@ -63,35 +62,35 @@ class PreNNProcessorSpec extends FlatSpec with Matchers with HasSpark {
     import spark.implicits._
 
     val sample = Seq(
-      WebSiteCategoriesText("u1", "ou1", Seq("a/b/c"),"t1"),
-      WebSiteCategoriesText("u1", "ou1", Seq("a/b/c1"),"t1"),
-      WebSiteCategoriesText("u1", "ou1", Seq("a/b/c2"),"t1"),
-      WebSiteCategoriesText("u1", "ou1", Seq("a/b/c"),"t1"),
-      WebSiteCategoriesText("u1", "ou1", Seq("a1/b1"),"t1"),
-      WebSiteCategoriesText("u1", "ou1", Seq("a1/b2"),"t1"),
-      WebSiteCategoriesText("u1", "ou1", Seq("a2/b2/c2/c3"),"t1"),
-      WebSiteCategoriesText("u1", "ou1", Seq("a2/b2/c2/c3"),"t1"),
-      WebSiteCategoriesText("u1", "ou1", Seq("a2/b2/c2/c3"),"t1"),
-      WebSiteCategoriesText("u1", "ou1", Seq("a2/b2/c2/c3"),"t1"),
-      WebSiteCategoriesText("u1", "ou1", Seq("a2/b2/c2/c3"),"t1")
-    ).toDS()
-
-    val expected = Seq(
-      WebSiteCategoriesText("u1", "u1", Seq("a/b/other"),"t1"),
-      WebSiteCategoriesText("u1", "u1", Seq("a/b/other"),"t1"),
-      WebSiteCategoriesText("u1", "u1", Seq("a/b/other"),"t1"),
-      WebSiteCategoriesText("u1", "u1", Seq("a/b/other"),"t1"),
-      WebSiteCategoriesText("u1", "u1", Seq("a2/b2/c2"),"t1"),
-      WebSiteCategoriesText("u1", "u1", Seq("a2/b2/c2"),"t1"),
-      WebSiteCategoriesText("u1", "u1", Seq("a2/b2/c2"),"t1"),
-      WebSiteCategoriesText("u1", "u1", Seq("a2/b2/c2"),"t1"),
-      WebSiteCategoriesText("u1", "u1", Seq("a2/b2/c2"),"t1"),
-      WebSiteCategoriesText("u1", "u1", Seq("a1/other"),"t1"),
-      WebSiteCategoriesText("u1", "u1", Seq("a1/other"),"t1")
+      WebSiteCategory("ou1", "a/b/c","t1"),
+      WebSiteCategory("ou1", "a/b/c1","t1"),
+      WebSiteCategory("ou1", "a/b/c2","t1"),
+      WebSiteCategory("ou1", "a/b/c","t1"),
+      WebSiteCategory("ou1", "a1/b1","t1"),
+      WebSiteCategory("ou1", "a1/b2","t1"),
+      WebSiteCategory("ou1", "a2/b2/c2/c3","t1"),
+      WebSiteCategory("ou1", "a2/b2/c2/c3","t1"),
+      WebSiteCategory("ou1", "a2/b2/c2/c3","t1"),
+      WebSiteCategory("ou1", "a2/b2/c2/c3","t1"),
+      WebSiteCategory("ou1", "a2/b2/c2/c3","t1")
     )
 
-    val actual = expandPopularCategories(3, 3)(sample).collect()
+    val expected = Seq(
+      WebSiteCategory("u1", "a/b/other","t1"),
+      WebSiteCategory("u1", "a/b/other","t1"),
+      WebSiteCategory("u1", "a/b/other","t1"),
+      WebSiteCategory("u1", "a/b/other","t1"),
+      WebSiteCategory("u1", "a2/b2/c2","t1"),
+      WebSiteCategory("u1", "a2/b2/c2","t1"),
+      WebSiteCategory("u1", "a2/b2/c2","t1"),
+      WebSiteCategory("u1", "a2/b2/c2","t1"),
+      WebSiteCategory("u1", "a2/b2/c2","t1"),
+      WebSiteCategory("u1", "a1/other","t1"),
+      WebSiteCategory("u1", "a1/other","t1")
+    )
 
-    actual.diff(expected) should be(Seq.empty[WebSiteCategoriesText])
+    val actual = expandPopularCategories(3, 3)(sample.toDS()).collect()
+
+    actual.diff(expected) should be(Seq.empty[WebSiteCategory])
   }
 }

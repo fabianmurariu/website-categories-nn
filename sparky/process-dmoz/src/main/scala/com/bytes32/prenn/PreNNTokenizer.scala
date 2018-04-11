@@ -5,7 +5,7 @@ import org.apache.spark.ml.feature.{CountVectorizer, CountVectorizerModel, OneHo
 import org.apache.spark.ml.linalg.SparseVector
 import org.apache.spark.sql._
 import org.apache.spark.sql.expressions.UserDefinedFunction
-import org.apache.spark.sql.functions.explode
+import org.apache.spark.sql.functions.{rand, first}
 
 object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
 
@@ -13,7 +13,7 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
                              weights: Array[Double] = Array(0.1, 0.1, 0.8),
                              labels: Seq[String] = Seq("valid", "test", "train"))
                             (implicit spark: SparkSession): Map[String, Dataset[T]] = {
-    (labels zip features.randomSplit(weights)).toMap
+    (labels zip features.randomSplit(weights)).map { case (k, d) => (k, d.cache()) }.toMap
   }
 
 
@@ -43,8 +43,6 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
     val (features, labels) = featuresAndLabels(config.sequenceLength, vocabWithEmbeddings, preFeatures)
     val featuresPath = config.outputPath + "/features"
 
-    features.cache()
-
     val featSplit = splitTrainTestValid(features)
     val trainPath = featuresPath + "/train"
     val testPath = featuresPath + "/test"
@@ -71,6 +69,16 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
       vocabWithEmbeddings.toSeq.toDF("word", "id").repartition(1).write.json(vocabularyPath)
     }
 
+    val categoriesPath = config.outputPath + "/categories"
+    runForOutput(categoriesPath) {
+      features.select("categoryName", "category")
+        .groupBy("categoryName")
+        .agg(first('category).as("category"))
+        .selectExpr("categoryName", "explode(category.indices) as category")
+        .coalesce(1)
+        .write
+        .json(categoriesPath)
+    }
   }
 
   def classWeights(ds: Dataset[WebSiteCategoriesText])(implicit spark: SparkSession): (Map[String, Double], Map[String, Long]) = {
@@ -182,13 +190,13 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
       .setOutputCol("categoryIndex")
       .fit(source)
 
-    val dfWIthCatIndexed = indexer.transform(source)
+    val dfWithCatIndexed = indexer.transform(source)
 
     val ohe = new OneHotEncoderEstimator()
       .setInputCols(Array("categoryIndex"))
       .setOutputCols(Array("categoryOhe"))
       .setDropLast(false)
-      .fit(dfWIthCatIndexed)
+      .fit(dfWithCatIndexed)
 
     val tokensUdf: UserDefinedFunction = org.apache.spark.sql.functions.udf {
       text: String =>
@@ -200,13 +208,16 @@ object PreNNTokenizer extends HasSpark with JobRunner with LazyLogging {
           .take(sequenceLength)
           .toVector
     }
-    
-    val features = ohe.transform(dfWIthCatIndexed)
+
+    val features = ohe.transform(dfWithCatIndexed)
       .selectExpr("uri", "origUri", "categoryOhe", "category", "text")
       .withColumnRenamed("category", "categoryName")
       .withColumnRenamed("categoryOhe", "category")
       .withColumn("tokens", tokensUdf('text))
+      .withColumn("r", rand())
+      .orderBy("r")
+      .drop("r")
 
-    (features, indexer.labels.seq.toDS().coalesce(1))
+    (features.cache(), indexer.labels.seq.toDS().coalesce(1))
   }
 }

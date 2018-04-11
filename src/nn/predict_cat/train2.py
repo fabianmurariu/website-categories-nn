@@ -123,18 +123,34 @@ def build_model(embeddings_path, labels, max_nb_words, embedding_dim=50, max_seq
     filter_sizes = [2, 3, 4]
     convs = []
     for filter_size in filter_sizes:
-        l_conv = Conv1D(filters=128, kernel_size=filter_size, padding='same', activation='relu')(embedded_sequences)
-        l_pool = MaxPool1D(filter_size)(l_conv)
+        l_conv = BatchNormalization()(
+            Conv1D(filters=128, kernel_size=filter_size, padding='same', activation='relu')(embedded_sequences))
+        l_pool = BatchNormalization()(MaxPool1D(filter_size)(l_conv))
         convs.append(l_pool)
 
     l_merge = Concatenate(axis=1)(convs)
-    l_cov1 = Conv1D(128, 5, activation='relu')(l_merge)
+    l_cov1 = BatchNormalization()(
+        Conv1D(128, 2, activation='relu')(l_merge))
+    l_max1 = BatchNormalization()(
+        MaxPool1D(2)(l_cov1))
+
+    l_cov2 = BatchNormalization()(
+        Conv1D(128, 3, activation='relu')(l_max1))
+    l_max2 = BatchNormalization()(MaxPool1D(3)(l_cov2))
+    #
+    # l_cov3 = BatchNormalization()(
+    #     Conv1D(128, 5, activation='relu')(l_max2))
+    # l_max3 = BatchNormalization()(MaxPool1D(5)(l_cov3))
+
     # since the text is too long we are maxpooling over 100
     # and not GlobalMaxPool1D
-    l_pool1 = MaxPool1D(100)(l_cov1)
-    l_flat = Flatten()(l_pool1)
-    l_dense1 = Dense(128, activation='relu')(l_flat)
-    l_dense2 = Dense(128, activation='relu')(l_dense1)
+    # l_pool1 = BatchNormalization()(
+    #     MaxPool1D(100)(l_cov2))
+
+    l_flat = Flatten()(l_max2)
+    l_dense1 = Dense(256, activation='relu')(l_flat)
+    l_dense2 = Dense(256, activation='relu')(l_dense1)
+    # l_dense3 = Dense(256, activation='relu')(l_dense2)
     l_out = Dense(len(labels), activation='softmax')(l_dense2)
 
     opt = Adam()
@@ -152,7 +168,7 @@ def fit_model(model, valid_ds, train_ds, class_weights, epochs):
     model.fit_generator(train_ds, validation_data=valid_ds, steps_per_epoch=steps_per_epoch,
                         validation_steps=steps_per_epoch / 10,
                         epochs=epochs,
-                        class_weight=class_weights
+                        class_weight='blerg'
                         )
 
 

@@ -7,9 +7,9 @@ import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
 
 object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with ProcessorConfig with TextCleanup {
 
-  def expandPopularCategories(cutoff:Int = 2000, minArticles:Int = 100)
-                             (websites: Dataset[WebSiteCategoriesText])
-                             (implicit spark: SparkSession):Dataset[WebSiteCategoriesText] = {
+  def expandPopularCategories(cutoff: Int = 299999, minArticles: Int = 100)
+                             (websites: Dataset[WebSiteCategory])
+                             (implicit spark: SparkSession): Dataset[WebSiteCategory] = {
     import org.apache.spark.sql.functions._
     import spark.implicits._
 
@@ -17,32 +17,35 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with Proc
       (cat, n) => cat.toLowerCase.stripPrefix("top/").split("\\/").take(n).mkString("/")
     }
 
-    def loop(ds: DataFrame, i:Int, cutoff:Int):DataFrame = {
+    def loop(ds: DataFrame, i: Int, cutoff: Int): DataFrame = {
       /* uri, category, text */
       val catCandidates = ds
         .where("category not like '%World%'").where("category not like '%Regional%'")
         .withColumn("cat", pickCategory('category, lit(i)))
+        .withColumn("text_length", size(split('text, "\\s+")))
+
+      //      val counts = catCandidates
+      //        .groupBy('cat).count().orderBy('count.desc)
+      //        .cache()
 
       val counts = catCandidates
-        .groupBy('cat).count().orderBy('count.desc)
+        .groupBy('cat).agg(sum('text_length).as("count")).orderBy('count.desc)
         .cache()
 
-      val categoryDepthCutoff = size(split(col("cat"),"\\/"))
+      counts.show(1500, truncate = false)
 
-      val showExpandedCatCounts = counts
+      val categoryDepthCutoff = size(split(col("cat"), "\\/"))
+
+      val expandCatCounts = counts
         .where($"count" > cutoff)
         .where(categoryDepthCutoff <= 2)
         .withColumnRenamed("cat", "cat_selected")
-
-      val expandCatCounts = showExpandedCatCounts
         .drop("count")
 
       val stopExpandCatCounts = counts
         .where($"count" <= cutoff or categoryDepthCutoff > 2)
         .withColumnRenamed("cat", "cat_remain")
         .drop("count")
-
-      showExpandedCatCounts.show(150, truncate=false)
 
       if (expandCatCounts.collect().length <= 1) {
         /* either all the cats are below the cutoff or we only have 1 contender remaining */
@@ -57,34 +60,34 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with Proc
           .join(stopExpandCatCounts, $"cat" === $"cat_remain", "inner")
           .drop("cat_remain")
 
-        println("WTF -> ", catCandidates.count(), expandWebsites.count(), stopExpandWebsites.count())
-
-        loop(expandWebsites.persist(), i+1, cutoff).union(stopExpandWebsites)
+        loop(expandWebsites.persist(), i + 1, cutoff).union(stopExpandWebsites)
       }
     }
-    val slimWebsites = websites.selectExpr("uri", "explode(categories) as category", "text")
+
+    val slimWebsites = websites.select("uri", "category", "text")
     val results = loop(slimWebsites, 2, cutoff).cache()
     val resCounts = results.groupBy('cat).count().orderBy('count.desc).withColumnRenamed("cat", "cat0")
     results
       .join(resCounts, $"cat" === $"cat0")
       .drop("cat0")
       .where("count > 5")
-      .map{
-        case Row(uri:String, category:String, text:String, cat:String, count:Long) =>
+      .select("uri", "text", "cat", "count")
+      .map {
+        case Row(uri: String, text: String, cat: String, count: Long) =>
           val catParts = cat.split("\\/")
           if (catParts.length == 1 && count < minArticles) {
-            WebSiteCategoriesText(uri, uri, Seq(cat + "/other"), text)
+            WebSiteCategory(uri, cat + "/other", text)
           } else if (catParts.length > 1 && count < minArticles) {
             val newCat = (catParts.dropRight(1) ++ Array(s"other")).mkString("/")
-            WebSiteCategoriesText(uri, uri, Seq(newCat), text)
+            WebSiteCategory(uri, newCat, text)
           } else {
-            WebSiteCategoriesText(uri, uri, Seq(cat), text)
+            WebSiteCategory(uri, cat, text)
           }
       }
   }
 
-  def removeRemainingWorldRegionalCatsLowercase(cats: Dataset[WebSiteCategoriesText])
-                                               (implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
+  def removeRemainingWorldRegionalCatsLowercase(cats: Dataset[WebSiteCategory])
+                                               (implicit spark: SparkSession): Dataset[WebSiteCategory] = {
     import spark.implicits._
 
     def makeCategory(origCategory: String, sep: String = "/"): String = {
@@ -97,28 +100,23 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with Proc
     }
 
     cats
-      .map(ws => ws.copy(text = Text.splitAndClean(ws.text).mkString(" ")))
-      .flatMap {
-        case WebSiteCategoriesText(uri, origUri, categories, text, origCategories) =>
-          categories.map(makeCategory(_)).map {
-            newCat =>
-              WebSiteCategoriesText(uri, origUri, Seq(newCat), text, origCategories)
-          }
-      }.filter { ws =>
-      ws.categories.nonEmpty && (
-        !ws.categories.head.contains("regional") &&
-          !ws.categories.head.contains("world") &&
-          !ws.categories.head.startsWith("top"))
-    }
+      .map(ws => ws.copy(text = Text.splitAndClean(ws.text).mkString(" "),
+        category = makeCategory(ws.category)))
+      .filter { ws =>
+        ws.category.nonEmpty && (
+          !ws.category.contains("regional") &&
+            !ws.category.contains("world") &&
+            !ws.category.startsWith("top"))
+      }
   }
 
   def breakIntoSentences(sentenceLength: Int, maxDocumentCountPerCat: Int = 50)
-                        (cats: Dataset[WebSiteCategoriesText])
-                        (implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
+                        (cats: Dataset[WebSiteCategory])
+                        (implicit spark: SparkSession): Dataset[WebSiteCategory] = {
     import spark.implicits._
 
     val categoriesCounts: Map[String, Long] = cats
-      .selectExpr("explode(categories) as category")
+      .select('category)
       .groupBy('category)
       .count()
       .orderBy('count.desc)
@@ -139,30 +137,30 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with Proc
       //we slide with a step of sentenceLength for the most common category
       //we slide with a step of 1 for the least common category
       //we figure out a line and pick numbers on it for everything in between
-      val minStep = 4d
+      val minStep = 5d
       val a: Double = (sentenceLength.toDouble - minStep) / (max.toDouble - min.toDouble)
       val b: Double = minStep - (min * a)
       math.max(1, (a * categoryCount + b).toInt)
     }
 
     cats.flatMap {
-      case WebSiteCategoriesText(uri, origUri, categories, text: String, origCategories) =>
-        if (categoriesCounts.contains(categories.head)) {
-          val categoryCount = categoriesCounts(categories.head)
+      case WebSiteCategory(uri, category, text: String) =>
+        if (categoriesCounts.contains(category)) {
+          val categoryCount = categoriesCounts(category)
           val stepLength = slidingWindowStep(minTextCount, maxTextCount, categoryCount)
           text.split("\\s+")
             .sliding(sentenceLength, stepLength).map {
-            tks => WebSiteCategoriesText(uri, origUri, categories, tks.mkString(" "), origCategories)
+            tks => WebSiteCategory(uri, category, tks.mkString(" "))
           }
         } else Seq.empty
     }
   }
 
-  def termFreqIdf(vocabularySize: Int = 30000)(ds: Dataset[WebSiteCategoriesText])
-                 (implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
+  def termFreqIdf(vocabularySize: Int = 30000)(ds: Dataset[WebSiteCategory])
+                 (implicit spark: SparkSession): Dataset[WebSiteCategory] = {
     import org.apache.spark.ml.feature.{HashingTF, IDF, Tokenizer, CountVectorizer, CountVectorizerModel}
     import spark.implicits._
-    val docs = ds.selectExpr("uri", "explode(categories) as category", "text")
+    val docs = ds
 
     val tokenizer = new Tokenizer()
       .setInputCol("text")
@@ -201,20 +199,20 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with Proc
             .split("\\s+")
             .filter(word => docFreqIndex.contains(word) && docFreqIndex(word) > 1)
             .mkString(" ")
-          WebSiteCategoriesText(uri, "", Seq(category), newText)
+          WebSiteCategory(uri, category, newText)
       }
   }
 
-  def recoverRegionalAndWorldCategories(ds: Dataset[WebSiteCategoriesText])
-                                       (implicit spark: SparkSession): Dataset[WebSiteCategoriesText] = {
+  def recoverRegionalAndWorldCategoriesReplaceSimilar(ds: Dataset[WebSiteCategory])
+                                                     (implicit spark: SparkSession): Dataset[WebSiteCategory] = {
     import spark.implicits._
     import org.apache.spark.sql.functions._
     val worldColFilter = 'category.like("%/Regional%") or 'category.like("%/World%")
 
-    val worldDf = ds.select('origUri.as("world_uri"), explode('categories).as("category"))
+    val worldDf = ds.select('uri.as("world_uri"), 'category)
       .where(worldColFilter)
 
-    val restDf = ds.select('origUri.as("rest_uri"), explode('categories).as("category"))
+    val restDf = ds.select('uri.as("rest_uri"), 'category)
       .where(not(worldColFilter))
       .withColumnRenamed("category", "substitute_category")
 
@@ -232,10 +230,15 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with Proc
               .maxBy(_._2)
           category -> substitute
       }
-    ds.map {
-      ws =>
-        val substitutes = ws.categories.map(cat => substitituteMap.getOrElse(cat, cat))
-        ws.copy(categories = substitutes)
+    ds.map { ws => ws.copy(category = substitituteMap.getOrElse(ws.category, ws.category)) }
+  }
+
+  def asWebSiteCategoryText(ds: Dataset[WebSiteCategoriesText])
+                           (implicit spark: SparkSession): Dataset[WebSiteCategory] = {
+    import spark.implicits._
+    ds.flatMap {
+      case WebSiteCategoriesText(uri, _, categories, text, _) =>
+        categories.map(category => WebSiteCategory(uri, category, text))
     }
   }
 
@@ -258,7 +261,8 @@ object PreNNProcessor extends HasSpark with JobRunner with LazyLogging with Proc
         .parquet(websitesTextOutput)
         .as[WebSiteCategoriesText]
 
-      (recoverRegionalAndWorldCategories _ andThen
+      (asWebSiteCategoryText _ andThen
+        recoverRegionalAndWorldCategoriesReplaceSimilar andThen
         removeRemainingWorldRegionalCatsLowercase andThen
         expandPopularCategories() andThen
         termFreqIdf() andThen
