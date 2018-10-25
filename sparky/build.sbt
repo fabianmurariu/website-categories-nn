@@ -39,6 +39,8 @@ lazy val processDmoz = (project in file("process-dmoz")).
       "com.optimaize.languagedetector" % "language-detector" % "0.6" exclude("com.google.guava", "guava"),
       "com.google.guava" % "guava" % "16.0.1",
       "org.scala-lang.modules" % "scala-xml_2.11" % "1.0.6",
+      "co.fs2" %% "fs2-io" % "0.10.3",
+      "co.fs2" %% "fs2-core" % "0.10.3",
       "org.apache.spark" %% "spark-core" % sparkVersion,
       "org.apache.spark" %% "spark-sql" % sparkVersion,
       "org.apache.spark" %% "spark-mllib" % sparkVersion)
